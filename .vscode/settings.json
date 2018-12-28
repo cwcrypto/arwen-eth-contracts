@@ -1,0 +1,8 @@
+{
+    "editor.detectIndentation": false,
+    "solidity.linter": "solhint",
+    "solidity.enabledAsYouTypeCompilationErrorCheck": true,
+    "solidity.validationDelay": 1500,
+    "solidity.packageDefaultDependenciesContractsDirectory": "",
+    "solidity.packageDefaultDependenciesDirectory": "node_modules"
+}

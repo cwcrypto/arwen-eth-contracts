@@ -1,0 +1,13 @@
+  {
+    "extends": "default",
+    "rules": {
+      "avoid-throw": false,
+      "avoid-suicide": "error",
+      "avoid-sha3": "warn",
+      "var-name-mixedcase": "warn",
+      "func-param-name-mixedcase": "warn",
+      "two-lines-top-level-separator": "warn",
+      "separate-by-one-line-in-contract": "warn",
+      "indent": [false]
+    }
+  }

@@ -1,0 +1,33 @@
+{
+  "name": "cwc-eth-contracts",
+  "version": "1.0.0",
+  "description": "CWC Ethereum smart contracts",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "openzeppelin-solidity": "^2.0.0",
+    "solc": "^0.4.25",
+    "web3": "^1.0.0-beta.37"
+  },
+  "devDependencies": {
+    "@types/bignumber.js": "^5.0.0",
+    "@types/mocha": "^5.2.5",
+    "@types/node": "^10.12.18",
+    "@types/web3": "^1.0.14",
+    "solhint": "^1.5.0",
+    "truffle-typings": "^1.0.5",
+    "ts-generator": "0.0.8",
+    "ts-node": "^7.0.1",
+    "typechain": "^0.3.10",
+    "typescript": "^3.2.2"
+  },
+  "scripts": {
+    "test": "truffle test",
+    "build": "truffle compile && npm run solhint && npm run typechain-gen",
+    "typechain-gen": "typechain --target truffle './build/**/*.json'",
+    "solhint": "solhint -c .solhint.json contracts/*"
+  },
+  "author": "CWC"
+}

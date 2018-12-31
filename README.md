@@ -1,12 +1,15 @@
 # CWC Ethereum Contracts
 
-## Quickstart Setup + Run Contract Unit Tests
+## Quickstart
 
-Setup
+### Setup
+
 ```
 npm install -g truffle
 npm install
 ```
+
+### Run Contract Unit Tests
 
 Terminal #1
 ```
@@ -94,7 +97,15 @@ See [here](https://truffleframework.com/docs/truffle/getting-started/package-man
 
 ## Solc
 
-Solc is the solidity compiler. It is possible install and run the solc compiler separately [see here](https://solidity.readthedocs.io/en/develop/installing-solidity.html).
+Solc is the solidity compiler. It is possible install and run the solc compiler separately [see here](https://solidity.readthedocs.io/en/develop/installing-solidity.html). This version of the solc compiler has many additional features including being able to show gas estimates for your contracts in order to benchmark and tune your solidity contracts for gas usage.
+
+To generate gas estimates for a contract use the `solc --gas <contract.sol>`. However if any external solidity imports are made in your file that are not in the current directory you have to setup the import paths that the solc uses. For example importing the openzepplin-solidity contracts requires mapping the `openzepplin-solidity` import path to its location in node_modules.
+
+```
+solc --gas openzeppelin-solidity/=<full-path-to-cwc-eth-contracts>/node_modules/openzeppelin-solidity/ contracts/Escrow.sol
+```
+
+However there are some limitations with the gas estimator that may cause it to show infinite estimates for some functions see this [post](https://ethereum.stackexchange.com/a/29637) for details.
 
 ### Solc with truffle
 
@@ -106,7 +117,7 @@ The version of the compiler used by the vscode extension is currently overriden 
 
 ### Version
 
-The current version of solidity we are using is `0.4.25` which is the final 0.4 release. There is a newer major version of solidty 0.5 which is now out which has some nice additional safety/security features. However not all the project dependencies currently play nice with it.
+The current version of solidity we are using is `0.4.25` which is the final 0.4 release. There is a newer major version of solidty [0.5](https://solidity.readthedocs.io/en/develop/050-breaking-changes.html) which is now out which has some nice additional safety/security features. However not all the project dependencies currently play nice with it.
 
 - [x] truffle supports all the latest compiler versions.
 - [ ] open-zepplin imported contracts. Many of these still require ^0.4.24. These will probably be updated soon.

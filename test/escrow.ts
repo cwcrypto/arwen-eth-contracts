@@ -11,14 +11,21 @@ const TestToken = artifacts.require("TestToken");
 import { EthEscrowInstance, Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts/index.d';
 import { Account, MessageSignature } from 'web3/eth/accounts';
 import { fail } from 'assert';
-
 import { BigNumber } from "bignumber.js";
+import { TransactionReceipt } from 'web3/types';
 
 /* Globals */
 var eReserve: Account, eTrade: Account, eRefund: Account;
-var pReserve: Account, pTrade: Account, pPuzzle: Account;
+var pReserve: Account, pTrade: Account;
 
 /* Helpers */
+
+const PRINT_GAS_USAGE = false;
+function PrintGasUsage(func: string, receipt: TransactionReceipt) {
+    if(PRINT_GAS_USAGE) {
+        console.log(`${func} took ${receipt.gasUsed} gas`);
+    }
+}
 
 function getCurrentTimeUnixEpoch() {
     return Math.floor(new Date().valueOf() / 1000)
@@ -30,38 +37,43 @@ function generateNewAccounts() {
     eRefund = web3.eth.accounts.create();
     pReserve = web3.eth.accounts.create();
     pTrade = web3.eth.accounts.create();
-    pPuzzle = web3.eth.accounts.create();
 }
 
 interface DuoSigned { eSig: MessageSignature, pSig: MessageSignature };
 
+/**
+ * Sign methods will automatically add the message prefix
+ * "\x19Ethereum Signed Message:\n" + message.length
+ * https://web3js.readthedocs.io/en/1.0/web3-eth-accounts.html#sign
+ */
+
 function signCashout(addr: string, escrowAmt: number, payeeAmt: number): DuoSigned {
     var types = ['address', 'uint256', 'uint256'];
     var values = [addr, escrowAmt, payeeAmt];
-    var digest = web3.eth.abi.encodeParameters(types, values);
-    var h = web3.utils.keccak256(digest);
+    var message = web3.eth.abi.encodeParameters(types, values);
+    var digest = web3.utils.keccak256(message);
     return {
-        eSig: eTrade.sign(h),
-        pSig: pTrade.sign(h)
+        eSig: eTrade.sign(digest),
+        pSig: pTrade.sign(digest)
     };
 }
 
 function signEscrowRefund(addr: string, escrowAmt: number, payeeAmt: number): MessageSignature {
     var types = ['address', 'uint256', 'uint256'];
     var values = [addr, escrowAmt, payeeAmt];
-    var digest = web3.eth.abi.encodeParameters(types, values);
-    var h = web3.utils.keccak256(digest);
-    return eRefund.sign(h);
+    var message = web3.eth.abi.encodeParameters(types, values);
+    var digest = web3.utils.keccak256(message);
+    return eRefund.sign(digest);
 }
 
 function signPuzzle(addr: string, escrowAmt: number, payeeAmt: number, tradeAmt: number, puzzle: string, timelock: number): DuoSigned {
     var types = ['address', 'uint256', 'uint256', 'uint256', 'bytes32', 'uint256'];
     var values = [addr, escrowAmt, payeeAmt, tradeAmt, puzzle, timelock];
-    var digest = web3.eth.abi.encodeParameters(types, values);
-    var h = web3.utils.keccak256(digest);
+    var message = web3.eth.abi.encodeParameters(types, values);
+    var digest = web3.utils.keccak256(message);
     return {
-        eSig: eTrade.sign(h),
-        pSig: pTrade.sign(h)
+        eSig: eTrade.sign(digest),
+        pSig: pTrade.sign(digest)
     };
 }
 
@@ -71,11 +83,17 @@ function signPuzzle(addr: string, escrowAmt: number, payeeAmt: number, tradeAmt:
 enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
 
 contract('EthEscrow', async (accounts) => {
+    var totalGasUsed = 0;
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
 
     beforeEach(async () => {
         // generate fresh accounts to use for every test
         generateNewAccounts();
+        totalGasUsed = 0;
+    });
+
+    afterEach(() => {
+        console.log("total gas used: " + totalGasUsed);
     });
 
     /** 
@@ -87,19 +105,23 @@ contract('EthEscrow', async (accounts) => {
      */
     async function setupEthEscrow(escrowAmount: number, escrowTimelock: number) : Promise<EthEscrowInstance> {
         var escrow = await EthEscrow.new( 
-            [ eReserve.address, eTrade.address, eRefund.address ], 
-            [ pReserve.address, pTrade.address, pPuzzle.address ], 
+            [ eReserve.address, eTrade.address, eRefund.address ],
+            [ pReserve.address, pTrade.address ],
             escrowTimelock,
             { from: mainAccount, value: escrowAmount}
         );
-        assert.equal((await escrow.escrowAmount()).toNumber(), escrowAmount, "escrow amount");
+        var receipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
+        PrintGasUsage("EthEscrow constructor", receipt);
+        totalGasUsed += receipt.gasUsed;
+
+        assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
         return escrow;
     }
 
     it("Test verify signature", async () => {
         var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         var h = web3.utils.keccak256("test message");
-        var eSig = await eTrade.sign(h);
+        var eSig = eTrade.sign(h);
         var addr = await escrow.verify(h, eSig.v, eSig.r, eSig.s);
         assert.equal(addr, eTrade.address, "verify address");
     });
@@ -108,7 +130,8 @@ contract('EthEscrow', async (accounts) => {
         var ethEscrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         var { eSig, pSig } = signCashout(ethEscrow.address, 600, 400);
         var txResult = await ethEscrow.cashout(600, 400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        console.log("gas used for cashout tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("cashout", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
         assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(400));
@@ -130,7 +153,8 @@ contract('EthEscrow', async (accounts) => {
         var expiredEscrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         var eSig = signEscrowRefund(expiredEscrow.address, 600, 400);
         var txResult = await expiredEscrow.refund(600, 400, eSig.v, eSig.r, eSig.s);
-        console.log("gas used for refund tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("refund", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
         assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(400));
@@ -146,7 +170,8 @@ contract('EthEscrow', async (accounts) => {
         var { eSig, pSig } = signPuzzle(escrow.address, 600, 200, 200, puzzle, puzzleTimelock);
 
         var txResult = await escrow.postPuzzle(600, 200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        console.log("gas used for postPuzzle tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("postPuzzle", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
         // State assertions after puzzle has been posted
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
@@ -163,7 +188,8 @@ contract('EthEscrow', async (accounts) => {
 
         // Solving the puzzle with the correct preimage should succeed and release the tradeAmount to the payee 
         var txResult = await escrow.solvePuzzle(preimage);
-        console.log("gas used for solvePuzzle tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("solvePuzzle", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
         assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(400));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
@@ -179,7 +205,8 @@ contract('EthEscrow', async (accounts) => {
        var { eSig, pSig } = signPuzzle(escrow.address, 600, 200, 200, puzzle, puzzleTimelock);
         
         var txResult = await escrow.postPuzzle(600, 200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        console.log("gas used for postPuzzle tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("postPuzzle", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
         // State assertions after puzzle has been posted
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
@@ -188,7 +215,8 @@ contract('EthEscrow', async (accounts) => {
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
         var txResult = await escrow.refundPuzzle();
-        console.log("gas used for refundPuzzle tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("refundPuzzle", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(800));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
@@ -197,14 +225,20 @@ contract('EthEscrow', async (accounts) => {
 
 contract('Erc20Escrow', async (accounts) => {
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
+    var totalGasUsed = 0;
     var testToken: TestTokenInstance;
 
     beforeEach(async () => {
         // generate fresh accounts to use for every test
         generateNewAccounts();
+        totalGasUsed = 0;
 
         // Create a test erc20 token with an initial balance minted to the mainAccount
         testToken = await TestToken.new({from: mainAccount});
+    });
+
+    afterEach(() => {
+        console.log("total gas used: " + totalGasUsed);
     });
 
     /** 
@@ -218,16 +252,26 @@ contract('Erc20Escrow', async (accounts) => {
         var escrow = await Erc20Escrow.new(
             testToken.address,
             escrowAmount,
-            [ eReserve.address, eTrade.address, eRefund.address ], 
-            [ pReserve.address, pTrade.address, pPuzzle.address ], 
+            [ eReserve.address, eTrade.address, eRefund.address ],
+            [ pReserve.address, pTrade.address ],
             escrowTimelock,
             { from: mainAccount }
         );
+
+        let receipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
+        PrintGasUsage("ERC20Escrow constructor", receipt);
+        totalGasUsed += receipt.gasUsed;
         
         // Approve escrow contract to transfer the tokens on behalf of mainAccount
-        testToken.approve(escrow.address, escrowAmount, {from: mainAccount});
-        escrow.fundEscrow(mainAccount);
-        assert.equal((await escrow.escrowAmount()).toNumber(), escrowAmount, "escrow amount");
+        var txResult = await testToken.approve(escrow.address, escrowAmount, {from: mainAccount});
+        PrintGasUsage("ERC20 token approve", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
+
+        txResult = await escrow.fundEscrow(mainAccount);
+        PrintGasUsage("fundEscrow", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
+
+        assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
         return escrow;
     }
 
@@ -235,7 +279,8 @@ contract('Erc20Escrow', async (accounts) => {
         var erc20Escrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
         var { eSig, pSig } = signCashout(erc20Escrow.address, 600, 400);
         var txResult = await erc20Escrow.cashout(600, 400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        console.log("gas used for cashout tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("cashout", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
         assert.equal((await testToken.balanceOf(eReserve.address)).toNumber(), 600);
         assert.equal((await testToken.balanceOf(pReserve.address)).toNumber(), 400);
@@ -257,10 +302,11 @@ contract('Erc20Escrow', async (accounts) => {
         var expiredEscrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
         var eSig = signEscrowRefund(expiredEscrow.address, 600, 400);
         var txResult = await expiredEscrow.refund(600, 400, eSig.v, eSig.r, eSig.s);
-        console.log("gas used for refund tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("refund", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
-        assert.equal((await testToken.balanceOf(eReserve.address)).toNumber(), 600);
-        assert.equal((await testToken.balanceOf(pReserve.address)).toNumber(), 400);
+        assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(eReserve.address)));
+        assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(pReserve.address)));
         assert.equal((await expiredEscrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
@@ -273,11 +319,12 @@ contract('Erc20Escrow', async (accounts) => {
         var { eSig, pSig } = signPuzzle(escrow.address, 600, 200, 200, puzzle, puzzleTimelock);
 
         var txResult = await escrow.postPuzzle(600, 200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        console.log("gas used for postPuzzle tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("postPuzzle", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
         // State assertions after puzzle has been posted
-        assert.equal((await testToken.balanceOf(eReserve.address)).toNumber(), 600);
-        assert.equal((await testToken.balanceOf(pReserve.address)).toNumber(), 200);
+        assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(eReserve.address)));
+        assert.isTrue(new BigNumber(200).isEqualTo(await testToken.balanceOf(pReserve.address)));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
 
         // Refunding the puzzle should fail because we have not yet hit the timelock
@@ -290,9 +337,10 @@ contract('Erc20Escrow', async (accounts) => {
 
         // Solving the puzzle with the correct preimage should succeed and release the tradeAmount to the payee 
         var txResult = await escrow.solvePuzzle(preimage);
-        console.log("gas used for solvePuzzle tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("solvePuzzle", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
-        assert.equal((await testToken.balanceOf(pReserve.address)).toNumber(),400);
+        assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(pReserve.address)));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
@@ -306,18 +354,20 @@ contract('Erc20Escrow', async (accounts) => {
        var { eSig, pSig } = signPuzzle(escrow.address, 600, 200, 200, puzzle, puzzleTimelock);
         
         var txResult = await escrow.postPuzzle(600, 200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        console.log("gas used for postPuzzle tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("postPuzzle", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
         // State assertions after puzzle has been posted
-        assert.equal((await testToken.balanceOf(eReserve.address)).toNumber(), 600);
-        assert.equal((await testToken.balanceOf(pReserve.address)).toNumber(),200);
+        assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(eReserve.address)));
+        assert.isTrue(new BigNumber(200).isEqualTo(await testToken.balanceOf(pReserve.address)));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
         var txResult = await escrow.refundPuzzle();
-        console.log("gas used for refundPuzzle tx: " + txResult.receipt.gasUsed);
+        PrintGasUsage("refundPuzzle", txResult.receipt);
+        totalGasUsed += txResult.receipt.gasUsed;
 
-        assert.equal((await testToken.balanceOf(eReserve.address)).toNumber(), 800);
+        assert.isTrue(new BigNumber(800).isEqualTo(await testToken.balanceOf(eReserve.address)));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 });

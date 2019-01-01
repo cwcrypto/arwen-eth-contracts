@@ -57,9 +57,9 @@ interface DuoSigned { eSig: MessageSignature, pSig: MessageSignature };
  * https://web3js.readthedocs.io/en/1.0/web3-eth-accounts.html#sign
  */
 
-function signCashout(addr: string, escrowAmt: number, payeeAmt: number): DuoSigned {
-    var types = ['address', 'uint256', 'uint256'];
-    var values = [addr, escrowAmt, payeeAmt];
+function signCashout(addr: string, amountTraded: number): DuoSigned {
+    var types = ['address', 'uint256'];
+    var values = [addr, amountTraded];
     var message = web3.eth.abi.encodeParameters(types, values);
     var digest = web3.utils.keccak256(message);
     return {
@@ -68,17 +68,17 @@ function signCashout(addr: string, escrowAmt: number, payeeAmt: number): DuoSign
     };
 }
 
-function signEscrowRefund(addr: string, escrowAmt: number, payeeAmt: number): MessageSignature {
-    var types = ['address', 'uint256', 'uint256'];
-    var values = [addr, escrowAmt, payeeAmt];
+function signEscrowRefund(addr: string, amountTraded: number): MessageSignature {
+    var types = ['address', 'uint256'];
+    var values = [addr, amountTraded];
     var message = web3.eth.abi.encodeParameters(types, values);
     var digest = web3.utils.keccak256(message);
     return eRefund.sign(digest);
 }
 
-function signPuzzle(addr: string, escrowAmt: number, payeeAmt: number, tradeAmt: number, puzzle: string, timelock: number): DuoSigned {
-    var types = ['address', 'uint256', 'uint256', 'uint256', 'bytes32', 'uint256'];
-    var values = [addr, escrowAmt, payeeAmt, tradeAmt, puzzle, timelock];
+function signPuzzle(addr: string, prevAmountTraded: number, tradeAmt: number, puzzle: string, timelock: number): DuoSigned {
+    var types = ['address', 'uint256', 'uint256', 'bytes32', 'uint256'];
+    var values = [addr, prevAmountTraded, tradeAmt, puzzle, timelock];
     var message = web3.eth.abi.encodeParameters(types, values);
     var digest = web3.utils.keccak256(message);
     return {
@@ -138,8 +138,8 @@ contract('EthEscrow', async (accounts) => {
 
     it("Test cashout escrow", async () => {
         var ethEscrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
-        var { eSig, pSig } = signCashout(ethEscrow.address, 600, 400);
-        var txResult = await ethEscrow.cashout(600, 400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var { eSig, pSig } = signCashout(ethEscrow.address, 400);
+        var txResult = await ethEscrow.cashout(400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
         PrintGasUsage("cashout", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
@@ -150,9 +150,9 @@ contract('EthEscrow', async (accounts) => {
 
     it("Test refund escrow before expiry", async () => {
         var escrowNotExpired = await setupEthEscrow(1000, getCurrentTimeUnixEpoch() + 24 * 60 * 60 );
-        var eSig = signEscrowRefund(escrowNotExpired.address, 600, 400);
+        var eSig = signEscrowRefund(escrowNotExpired.address, 400);
         try {
-            await escrowNotExpired.refund(600, 400, eSig.v, eSig.r, eSig.s);
+            await escrowNotExpired.refund(400, eSig.v, eSig.r, eSig.s);
             fail("Refunding escrow before it has expired should fail");
         } catch(err) {
             assert.match(err, new RegExp("Timelock not reached"));
@@ -161,8 +161,8 @@ contract('EthEscrow', async (accounts) => {
 
     it("Test refund expired escrow", async () => {
         var expiredEscrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
-        var eSig = signEscrowRefund(expiredEscrow.address, 600, 400);
-        var txResult = await expiredEscrow.refund(600, 400, eSig.v, eSig.r, eSig.s);
+        var eSig = signEscrowRefund(expiredEscrow.address, 400);
+        var txResult = await expiredEscrow.refund(400, eSig.v, eSig.r, eSig.s);
         PrintGasUsage("refund", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
@@ -177,9 +177,9 @@ contract('EthEscrow', async (accounts) => {
         var preimage = web3.utils.keccak256("test preimage");
         var puzzle = web3.utils.keccak256(preimage);
         var puzzleTimelock = getCurrentTimeUnixEpoch() + 24 * 60 * 60 ; // set puzzle timelock 1 day from now
-        var { eSig, pSig } = signPuzzle(escrow.address, 600, 200, 200, puzzle, puzzleTimelock);
+        var { eSig, pSig } = signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
 
-        var txResult = await escrow.postPuzzle(600, 200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
         PrintGasUsage("postPuzzle", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
@@ -212,9 +212,9 @@ contract('EthEscrow', async (accounts) => {
         var puzzle = web3.utils.keccak256(preimage);
         var puzzleTimelock = getCurrentTimeUnixEpoch(); // set puzzle timelock to now
 
-       var { eSig, pSig } = signPuzzle(escrow.address, 600, 200, 200, puzzle, puzzleTimelock);
+       var { eSig, pSig } = signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
         
-        var txResult = await escrow.postPuzzle(600, 200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
         PrintGasUsage("postPuzzle", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
@@ -287,8 +287,8 @@ contract('Erc20Escrow', async (accounts) => {
 
     it("Test cashout escrow", async () => {
         var erc20Escrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
-        var { eSig, pSig } = signCashout(erc20Escrow.address, 600, 400);
-        var txResult = await erc20Escrow.cashout(600, 400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var { eSig, pSig } = signCashout(erc20Escrow.address, 400);
+        var txResult = await erc20Escrow.cashout(400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
         PrintGasUsage("cashout", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
@@ -299,9 +299,9 @@ contract('Erc20Escrow', async (accounts) => {
 
     it("Test refund escrow before expiry", async () => {
         var escrowNotExpired = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch() + 24 * 60 * 60 );
-        var eSig = signEscrowRefund(escrowNotExpired.address, 600, 400);
+        var eSig = signEscrowRefund(escrowNotExpired.address, 400);
         try {
-            await escrowNotExpired.refund(600, 400, eSig.v, eSig.r, eSig.s);
+            await escrowNotExpired.refund(400, eSig.v, eSig.r, eSig.s);
             fail("Refunding escrow before it has expired should fail");
         } catch(err) {
             assert.match(err, new RegExp("Timelock not reached"));
@@ -310,8 +310,8 @@ contract('Erc20Escrow', async (accounts) => {
 
     it("Test refund expired escrow", async () => {
         var expiredEscrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
-        var eSig = signEscrowRefund(expiredEscrow.address, 600, 400);
-        var txResult = await expiredEscrow.refund(600, 400, eSig.v, eSig.r, eSig.s);
+        var eSig = signEscrowRefund(expiredEscrow.address, 400);
+        var txResult = await expiredEscrow.refund(400, eSig.v, eSig.r, eSig.s);
         PrintGasUsage("refund", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
@@ -326,9 +326,9 @@ contract('Erc20Escrow', async (accounts) => {
         var preimage = web3.utils.keccak256("test preimage");
         var puzzle = web3.utils.keccak256(preimage);
         var puzzleTimelock = getCurrentTimeUnixEpoch() + 24 * 60 * 60 ; // set puzzle timelock 1 day from now
-        var { eSig, pSig } = signPuzzle(escrow.address, 600, 200, 200, puzzle, puzzleTimelock);
+        var { eSig, pSig } = signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
 
-        var txResult = await escrow.postPuzzle(600, 200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
         PrintGasUsage("postPuzzle", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
@@ -361,9 +361,9 @@ contract('Erc20Escrow', async (accounts) => {
         var puzzle = web3.utils.keccak256(preimage);
         var puzzleTimelock = getCurrentTimeUnixEpoch(); // set puzzle timelock to now
 
-       var { eSig, pSig } = signPuzzle(escrow.address, 600, 200, 200, puzzle, puzzleTimelock);
+       var { eSig, pSig } = signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
         
-        var txResult = await escrow.postPuzzle(600, 200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
         PrintGasUsage("postPuzzle", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 

@@ -54,12 +54,11 @@ contract Escrow {
     /** Cashout the escrow sending the final balances after trading
     * @dev Must be signed by both the escrower and payee trade keys
     * @dev Must be in OPEN state
-    * @param _escrowerAmount The amount to send to the escrower
-    * @param _payeeAmount The amount to send to the payee
+    * @param _prevAmountTraded The total amount traded to the payee in the
+    * payment channel
     */
     function cashout(
-        uint _escrowerAmount,
-        uint _payeeAmount,
+        uint _prevAmountTraded,
         uint8 _eV, bytes32 _eR, bytes32 _eS,
         uint8 _pV, bytes32 _pR, bytes32 _pS
     )
@@ -68,31 +67,26 @@ contract Escrow {
     {
         bytes32 h = keccak256(abi.encode(
             address(this),
-            _escrowerAmount,
-            _payeeAmount
+            _prevAmountTraded
         ));
-
-        // Check amounts are valid
-        require(_escrowerAmount + _payeeAmount == escrowAmount);
 
         // Check signatures
         require(verify(h, _eV, _eR, _eS) == escrowerKeys[uint(EscrowerKeys.Trade)], "Invalid escrower cashout sig");
         require(verify(h, _pV, _pR, _pS) == payeeKeys[uint(PayeeKeys.Trade)], "Invalid payee cashout sig");
 
         closeEscrow();
-        sendToEscrower(_escrowerAmount);
-        sendToPayee(_payeeAmount);
+        sendToPayee(_prevAmountTraded);
+        sendRemainingToEscrower();
     }
 
     /** Allows the escrower to refund the escrow after the `escrowTimelock` has been reached
     * @dev Must be signed by the escrower refund key
     * @dev Must be in OPEN state
-    * @param _escrowerAmount The amount to send to the escrower
-    * @param _payeeAmount The amount to send to the payee
+    * @param _prevAmountTraded The total amount traded to the payee in the
+    * payment channel
     */
     function refund(
-        uint _escrowerAmount,
-        uint _payeeAmount,
+        uint _prevAmountTraded,
         uint8 _eV, bytes32 _eR, bytes32 _eS
     )
         public
@@ -101,26 +95,22 @@ contract Escrow {
     {
         bytes32 h = keccak256(abi.encode(
             address(this),
-            _escrowerAmount,
-            _payeeAmount
+            _prevAmountTraded
         ));
-
-        // Check amounts are valid
-        require(_escrowerAmount + _payeeAmount == escrowAmount);
 
         // Check signature
         require(verify(h, _eV, _eR, _eS) == escrowerKeys[uint(EscrowerKeys.Refund)], "Invalid escrower sig");
 
         closeEscrow();
-        sendToEscrower(_escrowerAmount);
-        sendToPayee(_payeeAmount);
+        sendToPayee(_prevAmountTraded);
+        sendRemainingToEscrower();
     }
 
     /** Post a hash puzzle unlocks lastest trade in the escrow 
     * @dev Must be signed by both the escrower and payee trade keys
     * @dev Must be in OPEN state
-    * @param _escrowerAmount The amount previously held by the escrower
-    * @param _payeeAmount The amount previously traded to the payee
+    * @param _prevAmountTraded The total amount traded to the payee in the
+    * payment channel before the last trade
     * @param _tradeAmount The current trade amount
     * @param _puzzle A hash puzzle where the solution (preimage) releases the
     * `_tradeAmount` to the payee
@@ -128,8 +118,7 @@ contract Escrow {
     * refunded back to the escrower if the puzzle solution is not posted
     */
     function postPuzzle(
-        uint _escrowerAmount,
-        uint _payeeAmount,
+        uint _prevAmountTraded,
         uint _tradeAmount,
         bytes32 _puzzle,
         uint _puzzleTimelock,
@@ -141,15 +130,11 @@ contract Escrow {
     {
         bytes32 h = keccak256(abi.encode(
             address(this),
-            _escrowerAmount,
-            _payeeAmount,
+            _prevAmountTraded,
             _tradeAmount,
             _puzzle,
             _puzzleTimelock
         ));
-
-        // Check amounts are valid
-        require(_escrowerAmount + _payeeAmount + _tradeAmount == escrowAmount);
 
         // Check signatures
         require(verify(h, _eV, _eR, _eS) == escrowerKeys[uint(EscrowerKeys.Trade)], "Invalid escrower sig");
@@ -163,8 +148,8 @@ contract Escrow {
         emit PuzzlePosted();
 
         // Return the previously traded funds
-        sendToEscrower(_escrowerAmount);
-        sendToPayee(_payeeAmount);
+        sendToPayee(_prevAmountTraded);
+        sendToEscrower(escrowAmount - _prevAmountTraded - _tradeAmount);
     }
 
     /**

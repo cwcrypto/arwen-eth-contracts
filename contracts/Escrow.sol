@@ -17,28 +17,24 @@ contract Escrow {
 
     enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
 
-    // Immutable State (only set once in constructor)
+    /** Immutable State (only set once in constructor) */
 
-    // Escrower Keys
-    address public escrowerTrade;
-    address public escrowerReserve;
-    address public escrowerRefund;
+    enum EscrowerKeys { Reserve, Trade, Refund }
+    address[3] public escrowerKeys;
 
-    // Payee Keys
-    address public payeeTrade;
-    address public payeeReserve;
-    address public payeePuzzle;
+    enum PayeeKeys { Reserve, Trade }
+    address[2] public payeeKeys;
 
     uint public escrowAmount;
     uint public escrowTimelock;
 
-    // Mutable state
+    /** Mutable state */
 
     EscrowState public escrowState;
     bytes32 public puzzle;
     uint public puzzleTimelock;
 
-    // Modifiers
+    /** Modifiers */
     modifier inState(EscrowState _state) {
         require(escrowState == _state, "Invalid escrow _state");
         _;
@@ -49,15 +45,9 @@ contract Escrow {
         _;
     }
 
-    constructor(address[3] _escrowerKeys, address[3] _payeeKeys, uint _timelock) internal {
-        escrowerReserve = _escrowerKeys[0];
-        escrowerTrade = _escrowerKeys[1];
-        escrowerRefund = _escrowerKeys[2];
-
-        payeeReserve = _payeeKeys[0];
-        payeeTrade = _payeeKeys[1];
-        payeePuzzle = _payeeKeys[2];
-
+    constructor(address[3] _escrowerKeys, address[2] _payeeKeys, uint _timelock) internal {
+        escrowerKeys = _escrowerKeys;
+        payeeKeys = _payeeKeys;
         escrowTimelock = _timelock;
     }
 
@@ -87,8 +77,8 @@ contract Escrow {
         require(_escrowerAmount + _payeeAmount == escrowAmount);
 
         // Check signatures
-        require(verify(h, _eV, _eR, _eS) == escrowerTrade, "Invalid escrower cashout signature");
-        require(verify(h, _pV, _pR, _pS) == payeeTrade, "Invalid payee cashout signature");
+        require(verify(h, _eV, _eR, _eS) == escrowerKeys[uint(EscrowerKeys.Trade)], "Invalid escrower cashout sig");
+        require(verify(h, _pV, _pR, _pS) == payeeKeys[uint(PayeeKeys.Trade)], "Invalid payee cashout sig");
 
         closeEscrow();
         sendToEscrower(_escrowerAmount);
@@ -121,7 +111,7 @@ contract Escrow {
         require(_escrowerAmount + _payeeAmount == escrowAmount);
 
         // Check signature
-        require(verify(h, _eV, _eR, _eS) == escrowerRefund, "Invalid escrower signature");
+        require(verify(h, _eV, _eR, _eS) == escrowerKeys[uint(EscrowerKeys.Refund)], "Invalid escrower sig");
 
         closeEscrow();
         sendToEscrower(_escrowerAmount);
@@ -165,8 +155,8 @@ contract Escrow {
         require(_escrowerAmount + _payeeAmount + _tradeAmount == escrowAmount);
 
         // Check signatures
-        require(verify(h, _eV, _eR, _eS) == escrowerTrade, "Invalid escrower signature");
-        require(verify(h, _pV, _pR, _pS) == payeeTrade, "Invalid payee signature");
+        require(verify(h, _eV, _eR, _eS) == escrowerKeys[uint(EscrowerKeys.Trade)], "Invalid escrower sig");
+        require(verify(h, _pV, _pR, _pS) == payeeKeys[uint(PayeeKeys.Trade)], "Invalid payee sig");
 
         // Save the puzzle parameters
         puzzle = _puzzle;
@@ -246,7 +236,7 @@ contract Escrow {
 */
 contract EthEscrow is Escrow {
 
-    constructor(address[3] _escrowerKeys, address[3] _payeeKeys, uint _timelock) public payable 
+    constructor(address[3] _escrowerKeys, address[2] _payeeKeys, uint _timelock) public payable
     Escrow(_escrowerKeys, _payeeKeys, _timelock) {
         escrowAmount = msg.value;
         escrowState = EscrowState.OPEN;
@@ -255,19 +245,19 @@ contract EthEscrow is Escrow {
     // TODO: use withdrawal pattern instead of transfer so malicious contract cant trap funds in escrow
     // see https://solidity.readthedocs.io/en/develop/common-patterns.html#withdrawal-from-contracts
     function sendToEscrower(uint _amt) internal {
-        escrowerReserve.transfer(_amt);
+        escrowerKeys[uint(EscrowerKeys.Reserve)].transfer(_amt);
     }
 
     function sendRemainingToEscrower() internal {
-        escrowerReserve.transfer(address(this).balance);
+        escrowerKeys[uint(EscrowerKeys.Reserve)].transfer(address(this).balance);
     }
 
     function sendToPayee(uint _amt) internal {
-        payeeReserve.transfer(_amt);
+        payeeKeys[uint(PayeeKeys.Reserve)].transfer(_amt);
     }
 
     function sendRemainingToPayee() internal {
-        payeeReserve.transfer(address(this).balance);
+        payeeKeys[uint(PayeeKeys.Reserve)].transfer(address(this).balance);
     }
 }
 
@@ -283,7 +273,7 @@ contract Erc20Escrow is Escrow {
 
     ERC20 public token;
 
-    constructor(address _tknAddr, uint _tknAmt, address[3] _escrowerKeys, address[3] _payeeKeys, uint _timelock) public
+    constructor(address _tknAddr, uint _tknAmt, address[3] _escrowerKeys, address[2] _payeeKeys, uint _timelock) public
     Escrow(_escrowerKeys, _payeeKeys, _timelock) {
         escrowAmount = _tknAmt;
 
@@ -295,9 +285,10 @@ contract Erc20Escrow is Escrow {
     }
 
     /**
-    * Attempts to transfer at least escrowAmount into this contract
-    * @dev Will fail unless the _from address has approved this contract to
-    * transfer `escrowAmount` using the `approve` method of the token contract
+    * Attempts to transfer escrowAmount into this contract
+    * @dev Will fail unless the _from address has approved this contract to *
+    * transfer at least `escrowAmount` using the `approve` method of the token
+    * contract
     * @param _from The address to transfer the tokens from
     */
     function fundEscrow(address _from) public inState(EscrowState.UNFUNDED) {
@@ -306,18 +297,18 @@ contract Erc20Escrow is Escrow {
     }
 
     function sendToEscrower(uint _amt) internal {
-        token.transfer(escrowerReserve, _amt);
+        token.transfer(escrowerKeys[uint(EscrowerKeys.Reserve)], _amt);
     }
 
     function sendRemainingToEscrower() internal {
-        token.transfer(escrowerReserve, token.balanceOf(address(this)));
+        token.transfer(escrowerKeys[uint(EscrowerKeys.Reserve)], token.balanceOf(address(this)));
     }
 
     function sendToPayee(uint _amt) internal {
-        token.transfer(payeeReserve, _amt);
+        token.transfer(payeeKeys[uint(PayeeKeys.Reserve)], _amt);
     }
 
     function sendRemainingToPayee() internal {
-        token.transfer(payeeReserve, token.balanceOf(address(this)));
+        token.transfer(payeeKeys[uint(PayeeKeys.Reserve)], token.balanceOf(address(this)));
     }
 }

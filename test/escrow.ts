@@ -23,9 +23,19 @@ var pReserve: Account, pTrade: Account;
 const PRINT_GAS_USAGE = false;
 function PrintGasUsage(func: string, receipt: TransactionReceipt) {
     if(PRINT_GAS_USAGE) {
-        console.log(`${func} took ${receipt.gasUsed} gas`);
+        console.log(`${func} took ${printGasCost(receipt.gasUsed)}`);
     }
 }
+
+function printGasCost(gasUsed: number) {
+    // assuiming gas price of 2 Gwei
+    // For up-to-date gas prices see: https://ethgasstation.info/
+    let gasPrice = web3.utils.toBN(2 * 1000 * 1000 * 1000);
+
+    let ethPrice = web3.utils.fromWei(gasPrice.mul(web3.utils.toBN(gasUsed)), "ether");
+    return `gas used ${gasUsed}: ${ethPrice} ETH`;
+}
+
 
 function getCurrentTimeUnixEpoch() {
     return Math.floor(new Date().valueOf() / 1000)
@@ -93,7 +103,7 @@ contract('EthEscrow', async (accounts) => {
     });
 
     afterEach(() => {
-        console.log("total gas used: " + totalGasUsed);
+        console.log(`total ${printGasCost(totalGasUsed)}\n`);
     });
 
     /** 
@@ -238,7 +248,7 @@ contract('Erc20Escrow', async (accounts) => {
     });
 
     afterEach(() => {
-        console.log("total gas used: " + totalGasUsed);
+        console.log(`total ${printGasCost(totalGasUsed)}\n`);
     });
 
     /** 

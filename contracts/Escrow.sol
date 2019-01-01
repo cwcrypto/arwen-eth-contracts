@@ -66,7 +66,6 @@ contract Escrow {
         public
         inState(EscrowState.OPEN)
     {
-        // TODO: use encodePacked() instead ?
         bytes32 h = keccak256(abi.encode(
             address(this),
             _escrowerAmount,
@@ -100,7 +99,6 @@ contract Escrow {
         inState(EscrowState.OPEN)
         afterTimelock(escrowTimelock)
     {
-        // TODO: use encodePacked() instead ?
         bytes32 h = keccak256(abi.encode(
             address(this),
             _escrowerAmount,
@@ -141,7 +139,6 @@ contract Escrow {
         public
         inState(EscrowState.OPEN)
     {
-        // TODO: use encodePacked() instead ?
         bytes32 h = keccak256(abi.encode(
             address(this),
             _escrowerAmount,

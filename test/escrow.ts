@@ -128,13 +128,13 @@ contract('EthEscrow', async (accounts) => {
         return escrow;
     }
 
-    it("Test verify signature", async () => {
-        var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
-        var h = web3.utils.keccak256("test message");
-        var eSig = eTrade.sign(h);
-        var addr = await escrow.verify(h, eSig.v, eSig.r, eSig.s);
-        assert.equal(addr, eTrade.address, "verify address");
-    });
+    // it("Test verify signature", async () => {
+    //     var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
+    //     var h = web3.utils.keccak256("test message");
+    //     var eSig = eTrade.sign(h);
+    //     var addr = await escrow.verify(h, eSig.v, eSig.r, eSig.s);
+    //     assert.equal(addr, eTrade.address, "verify address");
+    // });
 
     it("Test cashout escrow", async () => {
         var ethEscrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());

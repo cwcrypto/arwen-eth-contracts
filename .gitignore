@@ -6,3 +6,6 @@ build
 
 # typechain
 types
+
+#vscode-solidity
+bin

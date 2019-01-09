@@ -54,7 +54,7 @@ Truffle is an ethereum smart contract development toolchain with many awesome fe
 
 - Compile and deploy solidity contracts
 - Create js abstractions that can be used to interact with deployed contracts
-- Development environment with a simuated evm and blockchain
+- Development environment with a simulated evm and blockchain
 - Importing solidity libraries that are installed as npm modules
 - Migrations for managing deployments of smart contracts
 - EVM debugger

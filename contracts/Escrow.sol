@@ -36,7 +36,7 @@ contract Escrow {
 
     /** Modifiers */
     modifier inState(EscrowState _state) {
-        require(escrowState == _state, "Invalid escrow _state");
+        require(escrowState == _state, "Invalid escrow state");
         _;
     }
 
@@ -218,28 +218,41 @@ contract Escrow {
 */
 contract EthEscrow is Escrow {
 
+    uint public escrowerBalance;
+    uint public payeeBalance;
+
     constructor(address[3] _escrowerKeys, address[2] _payeeKeys, uint _timelock) public payable
     Escrow(_escrowerKeys, _payeeKeys, _timelock) {
         escrowAmount = msg.value;
         escrowState = EscrowState.OPEN;
     }
 
-    // TODO: use withdrawal pattern instead of transfer so malicious contract cant trap funds in escrow
-    // see https://solidity.readthedocs.io/en/develop/common-patterns.html#withdrawal-from-contracts
+    function withdrawEscrowerFunds() public {
+        uint balance = escrowerBalance;
+        escrowerBalance = 0;
+        escrowerKeys[uint(EscrowerKeys.Reserve)].transfer(balance);
+    }
+
+    function withdrawPayeeFunds() public {
+        uint balance = payeeBalance;
+        payeeBalance = 0;
+        payeeKeys[uint(PayeeKeys.Reserve)].transfer(balance);
+    }
+
     function sendToEscrower(uint _amt) internal {
-        escrowerKeys[uint(EscrowerKeys.Reserve)].transfer(_amt);
+        escrowerBalance += _amt;
     }
 
     function sendRemainingToEscrower() internal {
-        escrowerKeys[uint(EscrowerKeys.Reserve)].transfer(address(this).balance);
+        escrowerBalance += address(this).balance - payeeBalance - escrowerBalance;
     }
 
     function sendToPayee(uint _amt) internal {
-        payeeKeys[uint(PayeeKeys.Reserve)].transfer(_amt);
+        payeeBalance += _amt;
     }
 
     function sendRemainingToPayee() internal {
-        payeeKeys[uint(PayeeKeys.Reserve)].transfer(address(this).balance);
+        payeeBalance += address(this).balance - payeeBalance - escrowerBalance;
     }
 }
 

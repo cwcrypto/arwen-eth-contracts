@@ -128,6 +128,24 @@ contract('EthEscrow', async (accounts) => {
         return escrow;
     }
 
+    /**
+     * Attempts to withdraw any available balances for the escrower or payee in
+     * the escrow and records the gas used by calling the withdraw methods
+     */
+    async function withdrawBalances(escrow: EthEscrowInstance) {
+        let escrowerBalance = await escrow.escrowerBalance();
+        if( escrowerBalance.toNumber() > 0) {
+            let txResult = await escrow.withdrawEscrowerFunds();
+            totalGasUsed += txResult.receipt.gasUsed;
+        }
+
+        let payeeBalance = await escrow.payeeBalance();
+        if( payeeBalance.toNumber() > 0) {
+            let txResult = await escrow.withdrawPayeeFunds();
+            totalGasUsed += txResult.receipt.gasUsed;
+        }
+    }
+
     // it("Test verify signature", async () => {
     //     var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
     //     var h = web3.utils.keccak256("test message");
@@ -137,15 +155,16 @@ contract('EthEscrow', async (accounts) => {
     // });
 
     it("Test cashout escrow", async () => {
-        var ethEscrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
-        var { eSig, pSig } = signCashout(ethEscrow.address, 400);
-        var txResult = await ethEscrow.cashout(400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
+        var { eSig, pSig } = signCashout(escrow.address, 400);
+        var txResult = await escrow.cashout(400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
         PrintGasUsage("cashout", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
+        await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
         assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(400));
-        assert.equal((await ethEscrow.escrowState()).toNumber(), EscrowState.CLOSED);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
     it("Test refund escrow before expiry", async () => {
@@ -166,6 +185,7 @@ contract('EthEscrow', async (accounts) => {
         PrintGasUsage("refund", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
+        await withdrawBalances(expiredEscrow);
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
         assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(400));
         assert.equal((await expiredEscrow.escrowState()).toNumber(), EscrowState.CLOSED);
@@ -184,6 +204,7 @@ contract('EthEscrow', async (accounts) => {
         totalGasUsed += txResult.receipt.gasUsed;
 
         // State assertions after puzzle has been posted
+        await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
         assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(200));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
@@ -201,6 +222,7 @@ contract('EthEscrow', async (accounts) => {
         PrintGasUsage("solvePuzzle", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
+        await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(400));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
@@ -219,6 +241,7 @@ contract('EthEscrow', async (accounts) => {
         totalGasUsed += txResult.receipt.gasUsed;
 
         // State assertions after puzzle has been posted
+        await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
         assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(200));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
@@ -228,6 +251,7 @@ contract('EthEscrow', async (accounts) => {
         PrintGasUsage("refundPuzzle", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
+        await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(800));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
@@ -282,6 +306,7 @@ contract('Erc20Escrow', async (accounts) => {
         totalGasUsed += txResult.receipt.gasUsed;
 
         assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.OPEN);
         return escrow;
     }
 
@@ -292,8 +317,8 @@ contract('Erc20Escrow', async (accounts) => {
         PrintGasUsage("cashout", txResult.receipt);
         totalGasUsed += txResult.receipt.gasUsed;
 
-        assert.equal((await testToken.balanceOf(eReserve.address)).toNumber(), 600);
-        assert.equal((await testToken.balanceOf(pReserve.address)).toNumber(), 400);
+        assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(eReserve.address)));
+        assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(pReserve.address)));
         assert.equal((await erc20Escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 

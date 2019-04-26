@@ -1,5 +1,5 @@
 // Setup web3 provider to point at local development blockchain spawned by truffle develop
-import Web3 = require('web3');
+import Web3 from 'web3';
 const web3 = new Web3('http://localhost:9545');
 
 // Import truffle contract abstractions
@@ -9,10 +9,10 @@ const Erc20Escrow = artifacts.require("Erc20Escrow");
 const TestToken = artifacts.require("TestToken");
 
 import { EthEscrowInstance, Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts/index.d';
-import { Account, MessageSignature } from 'web3/eth/accounts';
+import { Account, Sign } from 'web3-eth-accounts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
-import { TransactionReceipt } from 'web3/types';
+import { TransactionReceipt } from 'web3-core';
 
 /* Globals */
 var eReserve: Account, eTrade: Account, eRefund: Account;
@@ -42,14 +42,19 @@ function getCurrentTimeUnixEpoch() {
 }
 
 function generateNewAccounts() {
-    eReserve = web3.eth.accounts.create();
-    eTrade = web3.eth.accounts.create();
-    eRefund = web3.eth.accounts.create();
-    pReserve = web3.eth.accounts.create();
-    pTrade = web3.eth.accounts.create();
+    eReserve = generateAccount();
+    eTrade = generateAccount();
+    eRefund = generateAccount();
+    pReserve = generateAccount();
+    pTrade = generateAccount();
 }
 
-interface DuoSigned { eSig: MessageSignature, pSig: MessageSignature };
+function  generateAccount(): Account {
+    var account = web3.eth.accounts.create();
+    return account;
+}
+
+interface DuoSigned { eSig: Sign, pSig: Sign };
 
 /**
  * Sign methods will automatically add the message prefix
@@ -68,7 +73,7 @@ function signCashout(addr: string, amountTraded: number): DuoSigned {
     };
 }
 
-function signEscrowRefund(addr: string, amountTraded: number): MessageSignature {
+function signEscrowRefund(addr: string, amountTraded: number): Sign {
     var types = ['address', 'uint256'];
     var values = [addr, amountTraded];
     var message = web3.eth.abi.encodeParameters(types, values);
@@ -162,8 +167,8 @@ contract('EthEscrow', async (accounts) => {
         totalGasUsed += txResult.receipt.gasUsed;
 
         await withdrawBalances(escrow);
-        assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
-        assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(400));
+        assert.equal(await web3.eth.getBalance(eReserve.address), "600");
+        assert.equal(await web3.eth.getBalance(pReserve.address), "400");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
@@ -186,8 +191,8 @@ contract('EthEscrow', async (accounts) => {
         totalGasUsed += txResult.receipt.gasUsed;
 
         await withdrawBalances(expiredEscrow);
-        assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
-        assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(400));
+        assert.equal(await web3.eth.getBalance(eReserve.address), "600");
+        assert.equal(await web3.eth.getBalance(pReserve.address), "400");
         assert.equal((await expiredEscrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
@@ -205,8 +210,8 @@ contract('EthEscrow', async (accounts) => {
 
         // State assertions after puzzle has been posted
         await withdrawBalances(escrow);
-        assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
-        assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(200));
+        assert.equal(await web3.eth.getBalance(eReserve.address), "600");
+        assert.equal(await web3.eth.getBalance(pReserve.address), "200");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
 
         // Refunding the puzzle should fail because we have not yet hit the timelock
@@ -223,7 +228,7 @@ contract('EthEscrow', async (accounts) => {
         totalGasUsed += txResult.receipt.gasUsed;
 
         await withdrawBalances(escrow);
-        assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(400));
+        assert.equal(await web3.eth.getBalance(pReserve.address), "400");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
@@ -242,8 +247,8 @@ contract('EthEscrow', async (accounts) => {
 
         // State assertions after puzzle has been posted
         await withdrawBalances(escrow);
-        assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(600));
-        assert.equal(await web3.eth.getBalance(pReserve.address), web3.utils.toBN(200));
+        assert.equal(await web3.eth.getBalance(eReserve.address), "600");
+        assert.equal(await web3.eth.getBalance(pReserve.address), "200");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
@@ -252,7 +257,7 @@ contract('EthEscrow', async (accounts) => {
         totalGasUsed += txResult.receipt.gasUsed;
 
         await withdrawBalances(escrow);
-        assert.equal(await web3.eth.getBalance(eReserve.address), web3.utils.toBN(800));
+        assert.equal(await web3.eth.getBalance(eReserve.address), "800");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 });

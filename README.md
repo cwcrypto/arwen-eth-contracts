@@ -5,6 +5,7 @@
 ### Setup
 
 ```
+npm install -g solhint
 npm install -g truffle
 npm install
 ```
@@ -44,7 +45,7 @@ The official solidity documentation is a great resource for both learning solidi
 
 ### [Solhint](https://github.com/protofire/solhint)
 
-Currently using solhint which is an open source solidity linter providing both **security** and **style guide** validations. Rules can be configured from the `.solhint.json` file.
+Currently using solhint which is an open source solidity linter providing both **security** and **style guide** validations. Rules can be configured from the `.solhint.json` file. You should install solhint globally with `npm install -g solhint`.
 
 ### [Truffle](https://truffleframework.com/docs/truffle/overview)
 
@@ -161,7 +162,6 @@ This module automatically generates typescript definintion files for your compil
 
 - @types/mocha: Types for mocha testing framework
 - @types/node: Types for node.js standard library
-- @types/web3: Types for web3.js ethereum library
 - @types/bignumber.js: Types for js big number library which is used by web3.js
 - truffle-typings: Types for truffle utilities
 

@@ -1,6 +1,12 @@
 import { Account, Sign } from "web3-eth-accounts";
 import { TransactionReceipt } from "web3-core";
 
+/**
+ * Escrow state enum matching the Escrow.sol internal state machine
+ */
+export enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
+
+
 export function  generateAccount(): Account {
     var account = web3.eth.accounts.create();
     return account;

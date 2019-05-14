@@ -1,4 +1,4 @@
-import { TestSigningService } from './common';
+import { TestSigningService, GasMeter } from './common';
 // Setup web3 provider to point at local development blockchain spawned by truffle develop
 import Web3 from 'web3';
 const web3 = new Web3('http://localhost:9545');
@@ -12,26 +12,7 @@ const TestToken = artifacts.require("TestToken");
 import { EthEscrowInstance, Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts/index.d';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
-import { TransactionReceipt } from 'web3-core';
 import { getCurrentTimeUnixEpoch } from './common';
-
-/* Helpers */
-
-const PRINT_GAS_USAGE = false;
-function PrintGasUsage(func: string, receipt: TransactionReceipt) {
-    if(PRINT_GAS_USAGE) {
-        console.log(`${func} took ${printGasCost(receipt.gasUsed)}`);
-    }
-}
-
-function printGasCost(gasUsed: number) {
-    // assuiming gas price of 2 Gwei
-    // For up-to-date gas prices see: https://ethgasstation.info/
-    let gasPrice = web3.utils.toBN(2 * 1000 * 1000 * 1000);
-
-    let ethPrice = web3.utils.fromWei(gasPrice.mul(web3.utils.toBN(gasUsed)), "ether");
-    return `gas used ${gasUsed}: ${ethPrice} ETH`;
-}
 
 /**
  * Escrow state enum matching the Escrow.sol internal state machine
@@ -39,18 +20,18 @@ function printGasCost(gasUsed: number) {
 enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
 
 contract('EthEscrow', async (accounts) => {
-    var totalGasUsed = 0;
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
     var TSS: TestSigningService;
+    var gasMeter: GasMeter;
 
     beforeEach(async () => {
         // generate fresh accounts to use for every test
         TSS = new TestSigningService();
-        totalGasUsed = 0;
+        gasMeter = new GasMeter();
     });
 
     afterEach(() => {
-        console.log(`total ${printGasCost(totalGasUsed)}\n`);
+        gasMeter.printAggregateGasUsage(false);
     });
 
     /** 
@@ -68,8 +49,7 @@ contract('EthEscrow', async (accounts) => {
             { from: mainAccount, value: escrowAmount}
         );
         var receipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
-        PrintGasUsage("EthEscrow constructor", receipt);
-        totalGasUsed += receipt.gasUsed;
+        gasMeter.TrackGasUsage("EthEscrow constructor", receipt);
 
         assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
         return escrow;
@@ -83,13 +63,13 @@ contract('EthEscrow', async (accounts) => {
         let escrowerBalance = await escrow.escrowerBalance();
         if( escrowerBalance.toNumber() > 0) {
             let txResult = await escrow.withdrawEscrowerFunds();
-            totalGasUsed += txResult.receipt.gasUsed;
+            gasMeter.TrackGasUsage("Withdraw Escrower Balance", txResult.receipt);
         }
 
         let payeeBalance = await escrow.payeeBalance();
         if( payeeBalance.toNumber() > 0) {
             let txResult = await escrow.withdrawPayeeFunds();
-            totalGasUsed += txResult.receipt.gasUsed;
+            gasMeter.TrackGasUsage("Withdraw Payee Balance", txResult.receipt);
         }
     }
 
@@ -97,8 +77,7 @@ contract('EthEscrow', async (accounts) => {
         var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         var { eSig, pSig } = TSS.signCashout(escrow.address, 400);
         var txResult = await escrow.cashout(400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        PrintGasUsage("cashout", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("cashout", txResult.receipt);
 
         await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600");
@@ -121,8 +100,7 @@ contract('EthEscrow', async (accounts) => {
         var expiredEscrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         var eSig = TSS.signEscrowRefund(expiredEscrow.address, 400);
         var txResult = await expiredEscrow.refund(400, eSig.v, eSig.r, eSig.s);
-        PrintGasUsage("refund", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("refund", txResult.receipt);
 
         await withdrawBalances(expiredEscrow);
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600");
@@ -139,8 +117,7 @@ contract('EthEscrow', async (accounts) => {
         var { eSig, pSig } = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
 
         var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        PrintGasUsage("postPuzzle", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
         await withdrawBalances(escrow);
@@ -158,8 +135,7 @@ contract('EthEscrow', async (accounts) => {
 
         // Solving the puzzle with the correct preimage should succeed and release the tradeAmount to the payee 
         var txResult = await escrow.solvePuzzle(preimage);
-        PrintGasUsage("solvePuzzle", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("solvePuzzle", txResult.receipt);
 
         await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "400");
@@ -176,8 +152,7 @@ contract('EthEscrow', async (accounts) => {
        var { eSig, pSig } = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
         
         var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        PrintGasUsage("postPuzzle", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
         await withdrawBalances(escrow);
@@ -187,8 +162,7 @@ contract('EthEscrow', async (accounts) => {
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
         var txResult = await escrow.refundPuzzle();
-        PrintGasUsage("refundPuzzle", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("refundPuzzle", txResult.receipt);
 
         await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "800");
@@ -198,20 +172,20 @@ contract('EthEscrow', async (accounts) => {
 
 contract('Erc20Escrow', async (accounts) => {
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
-    var totalGasUsed = 0;
     var testToken: TestTokenInstance;
     var TSS: TestSigningService;
+    var gasMeter: GasMeter;
 
     beforeEach(async () => {
         // generate fresh accounts to use for every test
-        totalGasUsed = 0;
         TSS = new TestSigningService();
+        gasMeter = new GasMeter();
         // Create a test erc20 token with an initial balance minted to the mainAccount
         testToken = await TestToken.new({from: mainAccount});
     });
 
     afterEach(() => {
-        console.log(`total ${printGasCost(totalGasUsed)}\n`);
+       gasMeter.printAggregateGasUsage(false);
     });
 
     /** 
@@ -232,17 +206,14 @@ contract('Erc20Escrow', async (accounts) => {
         );
 
         let receipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
-        PrintGasUsage("ERC20Escrow constructor", receipt);
-        totalGasUsed += receipt.gasUsed;
+        gasMeter.TrackGasUsage("ERC20Escrow constructor", receipt);
         
         // Approve escrow contract to transfer the tokens on behalf of mainAccount
         var txResult = await testToken.approve(escrow.address, escrowAmount, {from: mainAccount});
-        PrintGasUsage("ERC20 token approve", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("ERC20 token approve", txResult.receipt);
 
         txResult = await escrow.fundEscrow(mainAccount);
-        PrintGasUsage("fundEscrow", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("fundEscrow", txResult.receipt);
 
         assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.OPEN);
@@ -253,8 +224,7 @@ contract('Erc20Escrow', async (accounts) => {
         var erc20Escrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
         var { eSig, pSig } = TSS.signCashout(erc20Escrow.address, 400);
         var txResult = await erc20Escrow.cashout(400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        PrintGasUsage("cashout", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("cashout", txResult.receipt);
 
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
         assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)));
@@ -276,8 +246,7 @@ contract('Erc20Escrow', async (accounts) => {
         var expiredEscrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
         var eSig = TSS.signEscrowRefund(expiredEscrow.address, 400);
         var txResult = await expiredEscrow.refund(400, eSig.v, eSig.r, eSig.s);
-        PrintGasUsage("refund", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("refund", txResult.receipt);
 
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
         assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)));
@@ -293,8 +262,7 @@ contract('Erc20Escrow', async (accounts) => {
         var { eSig, pSig } = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
 
         var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        PrintGasUsage("postPuzzle", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
@@ -311,8 +279,7 @@ contract('Erc20Escrow', async (accounts) => {
 
         // Solving the puzzle with the correct preimage should succeed and release the tradeAmount to the payee 
         var txResult = await escrow.solvePuzzle(preimage);
-        PrintGasUsage("solvePuzzle", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("solvePuzzle", txResult.receipt);
 
         assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
@@ -328,8 +295,7 @@ contract('Erc20Escrow', async (accounts) => {
        var { eSig, pSig } = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
         
         var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
-        PrintGasUsage("postPuzzle", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
@@ -338,8 +304,7 @@ contract('Erc20Escrow', async (accounts) => {
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
         var txResult = await escrow.refundPuzzle();
-        PrintGasUsage("refundPuzzle", txResult.receipt);
-        totalGasUsed += txResult.receipt.gasUsed;
+        gasMeter.TrackGasUsage("refundPuzzle", txResult.receipt);
 
         assert.isTrue(new BigNumber(800).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);

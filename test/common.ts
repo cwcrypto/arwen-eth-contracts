@@ -1,4 +1,5 @@
 import { Account, Sign } from "web3-eth-accounts";
+import { TransactionReceipt } from "web3-core";
 
 export function  generateAccount(): Account {
     var account = web3.eth.accounts.create();
@@ -56,3 +57,36 @@ export class TestSigningService {
         };
     };
 }
+
+interface TxDetails { name: string, receipt: TransactionReceipt }
+
+export class GasMeter {
+    totalGasUsed = 0;
+    trackedTxs: TxDetails[] = [];
+
+    TrackGasUsage(name: string, receipt: TransactionReceipt) {
+        var tx: TxDetails = { name: name, receipt: receipt };
+        this.trackedTxs.push(tx);
+        this.totalGasUsed += tx.receipt.gasUsed;
+    }
+
+    printAggregateGasUsage(printAllTxs = true) {
+        console.log(`total ${this.printGasCost(this.totalGasUsed)}\n`);
+
+        if(printAllTxs) {
+            this.trackedTxs.forEach(tx => {
+                console.log(`${tx.name} took ${this.printGasCost(tx.receipt.gasUsed)}`);
+            });
+        }
+    }
+
+    printGasCost(gasUsed: number) {
+        // For up-to-date gas prices see: https://ethgasstation.info/
+        const GAS_PRICE = web3.utils.toBN(2 * 1000 * 1000 * 1000); // 2 Gwei
+        const ETH_USD_Price = 207;
+
+        let ethPrice = web3.utils.fromWei(GAS_PRICE.mul(web3.utils.toBN(gasUsed)), "ether");
+        let usdPrice = ethPrice * ETH_USD_Price;
+        return `gas used ${gasUsed}, ${ethPrice} ETH, ${usdPrice} USD`;
+    }
+};

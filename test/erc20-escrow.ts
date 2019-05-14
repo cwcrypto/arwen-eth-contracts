@@ -61,6 +61,16 @@ contract('Erc20Escrow', async (accounts) => {
         return escrow;
     }
 
+    it("Test construct Erc20 Escrow", async () => {
+        var escrowAmount = 1000;
+        var escrowTimelock = getCurrentTimeUnixEpoch();
+        var escrow = await setupERC20Escrow(escrowAmount, escrowTimelock);
+
+        assert.equal((await testToken.balanceOf(escrow.address)).toString(), escrowAmount.toString());
+        assert.equal((await escrow.escrowTimelock()).toNumber(), escrowTimelock);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.OPEN);
+    });
+
     it("Test cashout escrow", async () => {
         var erc20Escrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
         var { eSig, pSig } = TSS.signCashout(erc20Escrow.address, 400);

@@ -64,6 +64,18 @@ contract('EthEscrow', async (accounts) => {
         }
     }
 
+    it("Test construct Eth Escrow", async () => {
+        var escrowAmount = 1000;
+        var escrowTimelock = getCurrentTimeUnixEpoch();
+        var escrow = await setupEthEscrow(escrowAmount, escrowTimelock);
+
+        assert.equal(await web3.eth.getBalance(escrow.address), escrowAmount.toString());
+        assert.equal((await escrow.escrowTimelock()).toNumber(), escrowTimelock);
+        assert.equal((await escrow.escrowerBalance()).toString(), "0");
+        assert.equal((await escrow.payeeBalance()).toString(), "0");
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.OPEN);
+    });
+
     it("Test cashout escrow", async () => {
         var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         var { eSig, pSig } = TSS.signCashout(escrow.address, 400);

@@ -23,9 +23,10 @@
   },
   "scripts": {
     "test": "truffle test",
-    "build": "truffle compile && npm run solhint && npm run typechain-gen",
+    "build": "npm run clean && truffle compile && npm run solhint && npm run typechain-gen",
     "typechain-gen": "typechain --target truffle './build/**/*.json'",
-    "solhint": "solhint -c .solhint.json contracts/*"
+    "solhint": "solhint -c .solhint.json contracts/*",
+    "clean": "rm -rf build types"
   },
   "author": "CWC"
 }

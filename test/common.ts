@@ -89,7 +89,7 @@ export class GasMeter {
     printGasCost(gasUsed: number) {
         // For up-to-date gas prices see: https://ethgasstation.info/
         const GAS_PRICE = web3.utils.toBN(2 * 1000 * 1000 * 1000); // 2 Gwei
-        const ETH_USD_Price = 207;
+        const ETH_USD_Price = 260;
 
         let ethPrice = web3.utils.fromWei(GAS_PRICE.mul(web3.utils.toBN(gasUsed)), "ether");
         let usdPrice = ethPrice * ETH_USD_Price;

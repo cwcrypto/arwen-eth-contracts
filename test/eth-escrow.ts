@@ -34,8 +34,8 @@ contract('EthEscrow', async (accounts) => {
      */
     async function setupEthEscrow(escrowAmount: number, escrowTimelock: number) : Promise<EthEscrowInstance> {
         var escrow = await EthEscrow.new( 
-            [ TSS.eReserve.address, TSS.eTrade.address, TSS.eRefund.address ],
-            [ TSS.pReserve.address, TSS.pTrade.address ],
+            TSS.eReserve.address, TSS.eTrade.address, TSS.eRefund.address,
+            TSS.pReserve.address, TSS.pTrade.address,
             escrowTimelock,
             { from: mainAccount, value: escrowAmount}
         );

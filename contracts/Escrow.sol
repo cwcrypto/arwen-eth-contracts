@@ -12,24 +12,24 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 contract Escrow {
 
     // Events
-    event PuzzlePosted();
-    event EscrowClosed();
+    event PuzzlePosted(string reason);
+    event EscrowClosed(string action);
+    event Withdraw(address caller, EscrowState state);
 
     enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
 
     /** Immutable State (only set once in constructor) */
+    address escrowReserve;
+    address escrowTrade;
+    address escrowRefund;
 
-    enum EscrowerKeys { Reserve, Trade, Refund }
-    address[3] public escrowerKeys;
-
-    enum PayeeKeys { Reserve, Trade }
-    address[2] public payeeKeys;
+    address payeeReserve;
+    address payeeTrade;
 
     uint public escrowAmount;
     uint public escrowTimelock;
 
     /** Mutable state */
-
     EscrowState public escrowState;
     bytes32 public puzzle;
     uint public puzzleTimelock;
@@ -45,9 +45,14 @@ contract Escrow {
         _;
     }
 
-    constructor(address[3] _escrowerKeys, address[2] _payeeKeys, uint _timelock) internal {
-        escrowerKeys = _escrowerKeys;
-        payeeKeys = _payeeKeys;
+    constructor(
+        address _escrowReserve, address _escrowTrade, address _escrowRefund, address _payeeReserve, address _payeeTrade,
+        uint _timelock) internal {
+        escrowReserve = _escrowReserve;
+        escrowTrade = _escrowTrade;
+        escrowRefund = _escrowRefund;
+        payeeReserve = _payeeReserve;
+        payeeTrade = _payeeTrade;
         escrowTimelock = _timelock;
     }
 
@@ -71,10 +76,10 @@ contract Escrow {
         ));
 
         // Check signatures
-        require(verify(h, _eV, _eR, _eS) == escrowerKeys[uint(EscrowerKeys.Trade)], "Invalid escrower cashout sig");
-        require(verify(h, _pV, _pR, _pS) == payeeKeys[uint(PayeeKeys.Trade)], "Invalid payee cashout sig");
+        require(verify(h, _eV, _eR, _eS) == escrowTrade, "Invalid escrower cashout sig");
+        require(verify(h, _pV, _pR, _pS) == payeeTrade, "Invalid payee cashout sig");
 
-        closeEscrow();
+        closeEscrow("cashout");
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
     }
@@ -99,9 +104,9 @@ contract Escrow {
         ));
 
         // Check signature
-        require(verify(h, _eV, _eR, _eS) == escrowerKeys[uint(EscrowerKeys.Refund)], "Invalid escrower sig");
+        require(verify(h, _eV, _eR, _eS) == escrowRefund, "Invalid escrower sig");
 
-        closeEscrow();
+        closeEscrow("escrow refund");
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
     }
@@ -137,15 +142,15 @@ contract Escrow {
         ));
 
         // Check signatures
-        require(verify(h, _eV, _eR, _eS) == escrowerKeys[uint(EscrowerKeys.Trade)], "Invalid escrower sig");
-        require(verify(h, _pV, _pR, _pS) == payeeKeys[uint(PayeeKeys.Trade)], "Invalid payee sig");
+        require(verify(h, _eV, _eR, _eS) == escrowTrade, "Invalid escrower sig");
+        require(verify(h, _pV, _pR, _pS) == payeeTrade, "Invalid payee sig");
 
         // Save the puzzle parameters
         puzzle = _puzzle;
         puzzleTimelock = _puzzleTimelock;
 
         escrowState = EscrowState.PUZZLE_POSTED;
-        emit PuzzlePosted();
+        emit PuzzlePosted("trade completed");
 
         // Return the previously traded funds
         sendToPayee(_prevAmountTraded);
@@ -164,7 +169,7 @@ contract Escrow {
         bytes32 h = keccak256(abi.encode(_preimage));
         require(h == puzzle, "Invalid preimage");
 
-        closeEscrow();
+        closeEscrow("puzzle solved");
         sendRemainingToPayee();
     }
 
@@ -177,7 +182,7 @@ contract Escrow {
         inState(EscrowState.PUZZLE_POSTED)
         afterTimelock(puzzleTimelock)
     {
-        closeEscrow();
+        closeEscrow("puzzle refunded");
         sendRemainingToEscrower();
     }
 
@@ -195,9 +200,9 @@ contract Escrow {
     /**
     * Moves escrow state to CLOSED and emits an event log that the escrow has been closed
     */
-    function closeEscrow() internal {
+    function closeEscrow(string reason) internal {
         escrowState = EscrowState.CLOSED;
-        emit EscrowClosed();
+        emit EscrowClosed(reason);
     }
 
     /**
@@ -221,8 +226,11 @@ contract EthEscrow is Escrow {
     uint public escrowerBalance;
     uint public payeeBalance;
 
-    constructor(address[3] _escrowerKeys, address[2] _payeeKeys, uint _timelock) public payable
-    Escrow(_escrowerKeys, _payeeKeys, _timelock) {
+    constructor(
+        address _escrowReserve, address _escrowTrade, address _escrowRefund, address _payeeReserve, address _payeeTrade,
+        uint _timelock) public payable
+        Escrow(_escrowReserve, _escrowTrade, _escrowRefund,
+        _payeeReserve, _payeeTrade, _timelock) {
         escrowAmount = msg.value;
         escrowState = EscrowState.OPEN;
     }
@@ -230,13 +238,15 @@ contract EthEscrow is Escrow {
     function withdrawEscrowerFunds() public {
         uint balance = escrowerBalance;
         escrowerBalance = 0;
-        escrowerKeys[uint(EscrowerKeys.Reserve)].transfer(balance);
+        escrowReserve.transfer(balance);
+        emit Withdraw (msg.sender, escrowState);
     }
 
     function withdrawPayeeFunds() public {
         uint balance = payeeBalance;
         payeeBalance = 0;
-        payeeKeys[uint(PayeeKeys.Reserve)].transfer(balance);
+        payeeReserve.transfer(balance);
+        emit Withdraw (msg.sender, escrowState);
     }
 
     function sendToEscrower(uint _amt) internal {
@@ -268,15 +278,19 @@ contract Erc20Escrow is Escrow {
 
     ERC20 public token;
 
-    constructor(address _tknAddr, uint _tknAmt, address[3] _escrowerKeys, address[2] _payeeKeys, uint _timelock) public
-    Escrow(_escrowerKeys, _payeeKeys, _timelock) {
+
+    constructor(
+        address _tknAddr, uint _tknAmt,
+        address _escrowReserve, address _escrowTrade, address _escrowRefund, address _payeeReserve, address _payeeTrade,
+        uint _timelock) public payable
+        Escrow(_escrowReserve, _escrowTrade, _escrowRefund,
+        _payeeReserve, _payeeTrade, _timelock) {
         escrowAmount = _tknAmt;
-
-        // Validate the token address implements the ERC20 interface
+        
+        // Validate teh token address implements the ERC 20 standard
         token = ERC20(_tknAddr);
-
         // Start in UNFUNDED state until the fundEscrow function is called
-        escrowState = EscrowState.UNFUNDED;
+        escrowState = EscrowState.UNFUNDED; // Start in an unfunded state
     }
 
     /**
@@ -292,18 +306,18 @@ contract Erc20Escrow is Escrow {
     }
 
     function sendToEscrower(uint _amt) internal {
-        token.transfer(escrowerKeys[uint(EscrowerKeys.Reserve)], _amt);
+        token.transfer(escrowReserve, _amt);
     }
 
     function sendRemainingToEscrower() internal {
-        token.transfer(escrowerKeys[uint(EscrowerKeys.Reserve)], token.balanceOf(address(this)));
+        token.transfer(escrowReserve, token.balanceOf(address(this)));
     }
 
     function sendToPayee(uint _amt) internal {
-        token.transfer(payeeKeys[uint(PayeeKeys.Reserve)], _amt);
+        token.transfer(payeeReserve, _amt);
     }
 
     function sendRemainingToPayee() internal {
-        token.transfer(payeeKeys[uint(PayeeKeys.Reserve)], token.balanceOf(address(this)));
+        token.transfer(payeeReserve, token.balanceOf(address(this)));
     }
 }

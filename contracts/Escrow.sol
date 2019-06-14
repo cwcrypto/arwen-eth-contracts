@@ -1,4 +1,4 @@
-pragma solidity 0.4.25;
+pragma solidity ^0.5.0;
 
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
@@ -19,11 +19,11 @@ contract Escrow {
     enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
 
     /** Immutable State (only set once in constructor) */
-    address escrowReserve;
+    address payable escrowReserve;
     address escrowTrade;
     address escrowRefund;
 
-    address payeeReserve;
+    address payable payeeReserve;
     address payeeTrade;
 
     uint public escrowAmount;
@@ -46,8 +46,15 @@ contract Escrow {
     }
 
     constructor(
-        address _escrowReserve, address _escrowTrade, address _escrowRefund, address _payeeReserve, address _payeeTrade,
-        uint _timelock) internal {
+        address payable _escrowReserve,
+        address _escrowTrade,
+        address _escrowRefund,
+        address payable _payeeReserve,
+        address _payeeTrade,
+        uint _timelock
+    )
+        internal
+    {
         escrowReserve = _escrowReserve;
         escrowTrade = _escrowTrade;
         escrowRefund = _escrowRefund;
@@ -200,7 +207,7 @@ contract Escrow {
     /**
     * Moves escrow state to CLOSED and emits an event log that the escrow has been closed
     */
-    function closeEscrow(string reason) internal {
+    function closeEscrow(string memory reason) internal {
         escrowState = EscrowState.CLOSED;
         emit EscrowClosed(reason);
     }
@@ -227,10 +234,24 @@ contract EthEscrow is Escrow {
     uint public payeeBalance;
 
     constructor(
-        address _escrowReserve, address _escrowTrade, address _escrowRefund, address _payeeReserve, address _payeeTrade,
-        uint _timelock) public payable
-        Escrow(_escrowReserve, _escrowTrade, _escrowRefund,
-        _payeeReserve, _payeeTrade, _timelock) {
+        address payable _escrowReserve,
+        address _escrowTrade,
+        address _escrowRefund,
+        address payable _payeeReserve,
+        address _payeeTrade,
+        uint _timelock
+    ) 
+        public
+        payable
+    Escrow(
+        _escrowReserve,
+        _escrowTrade,
+        _escrowRefund,
+        _payeeReserve,
+        _payeeTrade,
+        _timelock
+    )
+    {
         escrowAmount = msg.value;
         escrowState = EscrowState.OPEN;
     }
@@ -278,16 +299,30 @@ contract Erc20Escrow is Escrow {
 
     ERC20 public token;
 
-
     constructor(
-        address _tknAddr, uint _tknAmt,
-        address _escrowReserve, address _escrowTrade, address _escrowRefund, address _payeeReserve, address _payeeTrade,
-        uint _timelock) public payable
-        Escrow(_escrowReserve, _escrowTrade, _escrowRefund,
-        _payeeReserve, _payeeTrade, _timelock) {
+        address _tknAddr,
+        uint _tknAmt,
+        address payable _escrowReserve,
+        address _escrowTrade,
+        address _escrowRefund,
+        address payable _payeeReserve,
+        address _payeeTrade,
+        uint _timelock
+    )
+        public
+        payable
+    Escrow(
+        _escrowReserve,
+        _escrowTrade,
+        _escrowRefund,
+        _payeeReserve,
+        _payeeTrade,
+        _timelock
+    )
+    {
         escrowAmount = _tknAmt;
         
-        // Validate teh token address implements the ERC 20 standard
+        // Validate the token address implements the ERC 20 standard
         token = ERC20(_tknAddr);
         // Start in UNFUNDED state until the fundEscrow function is called
         escrowState = EscrowState.UNFUNDED; // Start in an unfunded state
@@ -300,7 +335,7 @@ contract Erc20Escrow is Escrow {
     * contract
     * @param _from The address to transfer the tokens from
     */
-    function fundEscrow(address _from) public inState(EscrowState.UNFUNDED) {
+    function fundEscrow(address payable _from) public inState(EscrowState.UNFUNDED) {
         require(token.transferFrom(_from, address(this), escrowAmount));
         escrowState = EscrowState.OPEN;
     }

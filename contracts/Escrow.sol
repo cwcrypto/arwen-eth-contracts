@@ -12,11 +12,13 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 contract Escrow {
 
     // Events
-    event PuzzlePosted(string reason);
-    event EscrowClosed(string action);
-    event Withdraw(address caller, EscrowState state);
+    event PuzzlePosted(bytes32 p);
+    event EscrowClosed(Reason r);
+    event Preimage(bytes32 i);
+    event Withdraw(EscrowState s);
 
     enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
+    enum Reason { REFUND, PUZZLEREFUND, PUZZLESOLVE, CASHOUT }
 
     /** Immutable State (only set once in constructor) */
     address payable escrowReserve;
@@ -86,7 +88,7 @@ contract Escrow {
         require(verify(h, _eV, _eR, _eS) == escrowTrade, "Invalid escrower cashout sig");
         require(verify(h, _pV, _pR, _pS) == payeeTrade, "Invalid payee cashout sig");
 
-        closeEscrow("cashout");
+        closeEscrow(Reason.CASHOUT);
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
     }
@@ -113,7 +115,7 @@ contract Escrow {
         // Check signature
         require(verify(h, _eV, _eR, _eS) == escrowRefund, "Invalid escrower sig");
 
-        closeEscrow("escrow refund");
+        closeEscrow(Reason.REFUND);
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
     }
@@ -157,7 +159,7 @@ contract Escrow {
         puzzleTimelock = _puzzleTimelock;
 
         escrowState = EscrowState.PUZZLE_POSTED;
-        emit PuzzlePosted("trade completed");
+        emit PuzzlePosted(puzzle);
 
         // Return the previously traded funds
         sendToPayee(_prevAmountTraded);
@@ -176,7 +178,8 @@ contract Escrow {
         bytes32 h = keccak256(abi.encode(_preimage));
         require(h == puzzle, "Invalid preimage");
 
-        closeEscrow("puzzle solved");
+        emit Preimage(_preimage);
+        closeEscrow(Reason.PUZZLESOLVE);
         sendRemainingToPayee();
     }
 
@@ -189,7 +192,7 @@ contract Escrow {
         inState(EscrowState.PUZZLE_POSTED)
         afterTimelock(puzzleTimelock)
     {
-        closeEscrow("puzzle refunded");
+        closeEscrow(Reason.PUZZLEREFUND);
         sendRemainingToEscrower();
     }
 
@@ -207,7 +210,7 @@ contract Escrow {
     /**
     * Moves escrow state to CLOSED and emits an event log that the escrow has been closed
     */
-    function closeEscrow(string memory reason) internal {
+    function closeEscrow(Reason reason) internal {
         escrowState = EscrowState.CLOSED;
         emit EscrowClosed(reason);
     }
@@ -260,14 +263,14 @@ contract EthEscrow is Escrow {
         uint balance = escrowerBalance;
         escrowerBalance = 0;
         escrowReserve.transfer(balance);
-        emit Withdraw (msg.sender, escrowState);
+        emit Withdraw (escrowState);
     }
 
     function withdrawPayeeFunds() public {
         uint balance = payeeBalance;
         payeeBalance = 0;
         payeeReserve.transfer(balance);
-        emit Withdraw (msg.sender, escrowState);
+        emit Withdraw (escrowState);
     }
 
     function sendToEscrower(uint _amt) internal {

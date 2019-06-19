@@ -1,0 +1,19 @@
+language: node_js
+node_js:
+  - "lts/*"
+
+sudo:
+  required
+
+install:
+  - npm install -g solhint
+  - npm install -g truffle
+  - npm install -g ganache-cli
+  - npm install
+  - npm run build
+  
+before_script:
+  - ganache-cli -d -p 9545 > /dev/null &
+
+script:
+  - truffle test

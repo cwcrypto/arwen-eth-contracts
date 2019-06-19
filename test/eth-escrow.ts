@@ -79,7 +79,7 @@ contract('EthEscrow', async (accounts) => {
     it("Test cashout escrow", async () => {
         var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         var { eSig, pSig } = TSS.signCashout(escrow.address, 400);
-        var txResult = await escrow.cashout(400, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var txResult = await escrow.cashout(400, eSig.signature, pSig.signature);
         gasMeter.TrackGasUsage("cashout", txResult.receipt);
 
         await withdrawBalances(escrow);
@@ -92,7 +92,7 @@ contract('EthEscrow', async (accounts) => {
         var escrowNotExpired = await setupEthEscrow(1000, getCurrentTimeUnixEpoch() + 24 * 60 * 60 );
         var eSig = TSS.signEscrowRefund(escrowNotExpired.address, 400);
         try {
-            await escrowNotExpired.refund(400, eSig.v, eSig.r, eSig.s);
+            await escrowNotExpired.refund(400, eSig.signature);
             fail("Refunding escrow before it has expired should fail");
         } catch(err) {
             assert.match(err, new RegExp("Timelock not reached"));
@@ -102,7 +102,7 @@ contract('EthEscrow', async (accounts) => {
     it("Test refund expired escrow", async () => {
         var expiredEscrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         var eSig = TSS.signEscrowRefund(expiredEscrow.address, 400);
-        var txResult = await expiredEscrow.refund(400, eSig.v, eSig.r, eSig.s);
+        var txResult = await expiredEscrow.refund(400, eSig.signature);
         gasMeter.TrackGasUsage("refund", txResult.receipt);
 
         await withdrawBalances(expiredEscrow);
@@ -119,7 +119,10 @@ contract('EthEscrow', async (accounts) => {
         var puzzleTimelock = getCurrentTimeUnixEpoch() + 24 * 60 * 60 ; // set puzzle timelock 1 day from now
         var { eSig, pSig } = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
 
-        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, 
+            eSig.signature,
+            pSig.signature
+            );
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
@@ -152,9 +155,14 @@ contract('EthEscrow', async (accounts) => {
         var puzzle = web3.utils.keccak256(preimage);
         var puzzleTimelock = getCurrentTimeUnixEpoch(); // set puzzle timelock to now
 
-       var { eSig, pSig } = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
-        
-        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, eSig.v, eSig.r, eSig.s, pSig.v, pSig.r, pSig.s);
+        var {eSig, pSig} = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
+
+
+        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, 
+            eSig.signature,
+            pSig.signature
+            );
+
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted

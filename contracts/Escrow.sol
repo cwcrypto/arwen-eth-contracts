@@ -1,6 +1,8 @@
 pragma solidity ^0.5.0;
 
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
+import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
+
 
 
 /** 
@@ -73,20 +75,20 @@ contract Escrow {
     */
     function cashout(
         uint _prevAmountTraded,
-        uint8 _eV, bytes32 _eR, bytes32 _eS,
-        uint8 _pV, bytes32 _pR, bytes32 _pS
+        bytes memory _eSig,
+        bytes memory _pSig
     )
         public
         inState(EscrowState.OPEN)
     {
-        bytes32 h = keccak256(abi.encode(
+        bytes32 h = keccak256(abi.encodePacked(
             address(this),
             _prevAmountTraded
         ));
 
         // Check signatures
-        require(verify(h, _eV, _eR, _eS) == escrowTrade, "Invalid escrower cashout sig");
-        require(verify(h, _pV, _pR, _pS) == payeeTrade, "Invalid payee cashout sig");
+        require(verify(h, _eSig) == escrowTrade, "Invalid escrower cashout sig");
+        require(verify(h, _pSig) == payeeTrade, "Invalid payee cashout sig");
 
         closeEscrow(EscrowCloseReason.CASHOUT);
         sendToPayee(_prevAmountTraded);
@@ -101,19 +103,19 @@ contract Escrow {
     */
     function refund(
         uint _prevAmountTraded,
-        uint8 _eV, bytes32 _eR, bytes32 _eS
+        bytes memory _eSig
     )
         public
         inState(EscrowState.OPEN)
         afterTimelock(escrowTimelock)
     {
-        bytes32 h = keccak256(abi.encode(
+        bytes32 h = keccak256(abi.encodePacked(
             address(this),
             _prevAmountTraded
         ));
 
         // Check signature
-        require(verify(h, _eV, _eR, _eS) == escrowRefund, "Invalid escrower sig");
+        require(verify(h, _eSig) == escrowRefund, "Invalid escrower sig");
 
         closeEscrow(EscrowCloseReason.REFUND);
         sendToPayee(_prevAmountTraded);
@@ -136,13 +138,13 @@ contract Escrow {
         uint _tradeAmount,
         bytes32 _puzzle,
         uint _puzzleTimelock,
-        uint8 _eV, bytes32 _eR, bytes32 _eS,
-        uint8 _pV, bytes32 _pR, bytes32 _pS
+        bytes memory eSig,
+        bytes memory pSig
     )
         public
         inState(EscrowState.OPEN)
     {
-        bytes32 h = keccak256(abi.encode(
+        bytes32 h = keccak256(abi.encodePacked(
             address(this),
             _prevAmountTraded,
             _tradeAmount,
@@ -150,9 +152,8 @@ contract Escrow {
             _puzzleTimelock
         ));
 
-        // Check signatures
-        require(verify(h, _eV, _eR, _eS) == escrowTrade, "Invalid escrower sig");
-        require(verify(h, _pV, _pR, _pS) == payeeTrade, "Invalid payee sig");
+        require(verify(h, eSig) == escrowTrade, "Invalid escrower sig");
+        require(verify(h, pSig) == payeeTrade, "Invalid payee sig");
 
         // Save the puzzle parameters
         puzzle = _puzzle;
@@ -175,7 +176,7 @@ contract Escrow {
         public
         inState(EscrowState.PUZZLE_POSTED)
     {
-        bytes32 h = keccak256(abi.encode(_preimage));
+        bytes32 h = keccak256(abi.encodePacked(_preimage));
         require(h == puzzle, "Invalid preimage");
 
         emit Preimage(_preimage);
@@ -197,14 +198,12 @@ contract Escrow {
     }
 
     /** Verify a EC signature (v,r,s) on a message digest h
-    * @dev TODO: remove prefix that web3.eth.sign() automatically includes
-    * https://ethereum.stackexchange.com/questions/15364/ecrecover-from-geth-and-web3-eth-sign
+    * Uses EIP-191 for ethereum signed messages
     * @return retAddr The recovered address from the signature or 0 if signature is invalid
     */
-    function verify( bytes32 _h, uint8 _v, bytes32 _r, bytes32 _s) public pure returns(address retAddr) {
-        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
-        bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, _h));
-        retAddr = ecrecover(prefixedHash, _v, _r, _s);
+    function verify( bytes32 _h, bytes memory sig) internal pure returns(address retAddr) {
+        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _h));
+        retAddr = ECDSA.recover(prefixedHash, sig);
     }
 
     /**

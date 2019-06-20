@@ -19,7 +19,7 @@ Current events:
  - EscrowClosed: empty
 
 Proposed signatures:
- - PuzzlePosted (string reason)	// Escrow or payee issue?
+ - PuzzlePosted (string EscrowCloseReason)	// Escrow or payee issue?
  - EscrowClosed (string action) // refund, cashout, puzzle, etc...
  - ContractWithdraw (string callee, string currentState) // who called this function? In the case its people outside the ring of participants it would be nice to know
 

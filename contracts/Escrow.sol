@@ -159,7 +159,7 @@ contract Escrow {
         puzzleTimelock = _puzzleTimelock;
 
         escrowState = EscrowState.PUZZLE_POSTED;
-        emit PuzzlePosted("trade completed");
+        emit PuzzlePosted(puzzle);
 
         // Return the previously traded funds
         sendToPayee(_prevAmountTraded);

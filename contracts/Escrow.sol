@@ -13,12 +13,12 @@ contract Escrow {
 
     // Events
     event PuzzlePosted(bytes32 p);
-    event EscrowClosed(Reason r);
+    event EscrowClosed(EscrowCloseReason r);
     event Preimage(bytes32 i);
     event Withdraw(EscrowState s);
 
     enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
-    enum Reason { REFUND, PUZZLEREFUND, PUZZLESOLVE, CASHOUT }
+    enum EscrowCloseReason { REFUND, PUZZLEREFUND, PUZZLESOLVE, CASHOUT }
 
     /** Immutable State (only set once in constructor) */
     address payable escrowReserve;
@@ -88,7 +88,7 @@ contract Escrow {
         require(verify(h, _eV, _eR, _eS) == escrowTrade, "Invalid escrower cashout sig");
         require(verify(h, _pV, _pR, _pS) == payeeTrade, "Invalid payee cashout sig");
 
-        closeEscrow(Reason.CASHOUT);
+        closeEscrow(EscrowCloseReason.CASHOUT);
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
     }
@@ -115,7 +115,7 @@ contract Escrow {
         // Check signature
         require(verify(h, _eV, _eR, _eS) == escrowRefund, "Invalid escrower sig");
 
-        closeEscrow(Reason.REFUND);
+        closeEscrow(EscrowCloseReason.REFUND);
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
     }
@@ -159,7 +159,7 @@ contract Escrow {
         puzzleTimelock = _puzzleTimelock;
 
         escrowState = EscrowState.PUZZLE_POSTED;
-        emit PuzzlePosted(puzzle);
+        emit PuzzlePosted("trade completed");
 
         // Return the previously traded funds
         sendToPayee(_prevAmountTraded);
@@ -179,7 +179,7 @@ contract Escrow {
         require(h == puzzle, "Invalid preimage");
 
         emit Preimage(_preimage);
-        closeEscrow(Reason.PUZZLESOLVE);
+        closeEscrow(EscrowCloseReason.PUZZLESOLVE);
         sendRemainingToPayee();
     }
 
@@ -192,7 +192,7 @@ contract Escrow {
         inState(EscrowState.PUZZLE_POSTED)
         afterTimelock(puzzleTimelock)
     {
-        closeEscrow(Reason.PUZZLEREFUND);
+        closeEscrow(EscrowCloseReason.PUZZLEREFUND);
         sendRemainingToEscrower();
     }
 
@@ -210,7 +210,7 @@ contract Escrow {
     /**
     * Moves escrow state to CLOSED and emits an event log that the escrow has been closed
     */
-    function closeEscrow(Reason reason) internal {
+    function closeEscrow(EscrowCloseReason reason) internal {
         escrowState = EscrowState.CLOSED;
         emit EscrowClosed(reason);
     }

@@ -18,7 +18,7 @@
     "truffle-typings": "^1.0.6",
     "ts-generator": "0.0.8",
     "ts-node": "^7.0.1",
-    "typechain": "^0.3.10",
+    "typechain": "^0.3.16",
     "typescript": "^3.2.2"
   },
   "scripts": {

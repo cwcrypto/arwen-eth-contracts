@@ -52,15 +52,10 @@ contract('EthEscrow', async (accounts) => {
      */
     async function withdrawBalances(escrow: EthEscrowInstance) {
         let escrowerBalance = await escrow.escrowerBalance();
-        if( escrowerBalance.toNumber() > 0) {
-            let txResult = await escrow.withdrawEscrowerFunds();
-            gasMeter.TrackGasUsage("Withdraw Escrower Balance", txResult.receipt);
-        }
-
         let payeeBalance = await escrow.payeeBalance();
-        if( payeeBalance.toNumber() > 0) {
-            let txResult = await escrow.withdrawPayeeFunds();
-            gasMeter.TrackGasUsage("Withdraw Payee Balance", txResult.receipt);
+        if( escrowerBalance.toNumber() > 0 || payeeBalance.toNumber() > 0) {
+            let txResult = await escrow.withdrawFunds();
+            gasMeter.TrackGasUsage("Withdraw Escrower+Payee Balance", txResult.receipt);
         }
     }
 
@@ -126,9 +121,6 @@ contract('EthEscrow', async (accounts) => {
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
-        await withdrawBalances(escrow);
-        assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600");
-        assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "200");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
 
         // Refunding the puzzle should fail because we have not yet hit the timelock
@@ -166,9 +158,6 @@ contract('EthEscrow', async (accounts) => {
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
-        await withdrawBalances(escrow);
-        assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600");
-        assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "200");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 

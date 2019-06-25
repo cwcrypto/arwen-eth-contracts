@@ -17,7 +17,7 @@ contract Escrow {
     event PuzzlePosted(bytes32 p);
     event EscrowClosed(EscrowCloseReason r);
     event Preimage(bytes32 i);
-    event Withdraw(EscrowState s);
+    event Withdraw(address caller);
 
     enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
     enum EscrowCloseReason { REFUND, PUZZLEREFUND, PUZZLESOLVE, CASHOUT }
@@ -258,18 +258,22 @@ contract EthEscrow is Escrow {
         escrowState = EscrowState.OPEN;
     }
 
-    function withdrawEscrowerFunds() public {
-        uint balance = escrowerBalance;
-        escrowerBalance = 0;
-        escrowReserve.transfer(balance);
-        emit Withdraw (escrowState);
-    }
+    function withdrawFunds() public inState(EscrowState.CLOSED){
+        
+        bool escrowSuccess = escrowReserve.send(escrowerBalance);
+        bool payeeSuccess = payeeReserve.send(payeeBalance);
 
-    function withdrawPayeeFunds() public {
-        uint balance = payeeBalance;
-        payeeBalance = 0;
-        payeeReserve.transfer(balance);
-        emit Withdraw (escrowState);
+        if(escrowSuccess && payeeSuccess) {
+            selfdestruct(msg.sender);
+        } else if (escrowSuccess) {
+            selfdestruct(escrowReserve);
+        } else if(payeeSuccess) {
+            selfdestruct(payeeReserve);
+        } else {
+            // There is a case where neither party is honest,
+            // whoever spots that will get the cash
+            selfdestruct(msg.sender);
+        }
     }
 
     function sendToEscrower(uint _amt) internal {

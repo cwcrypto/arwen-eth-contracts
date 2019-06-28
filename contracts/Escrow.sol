@@ -254,30 +254,24 @@ contract EthEscrow is Escrow {
         escrowState = EscrowState.OPEN;
     }
 
-    // function withdrawFunds() public inState(EscrowState.CLOSED){
-        
-        
-
-    //     // if(escrowSuccess && payeeSuccess) {
-    //     //     selfdestruct(msg.sender);
-    //     // } else if (escrowSuccess) {
-    //     //     selfdestruct(escrowReserve);
-    //     // } else if(payeeSuccess) {
-    //     //     selfdestruct(payeeReserve);
-    //     // } else {
-    //     //     // There is a case where neither party is honest,
-    //     //     // whoever spots that will get the cash
-    //     //     selfdestruct(msg.sender);
-    //     // }
-    // }
-
      function closeEscrow(EscrowCloseReason reason) internal {
         escrowState = EscrowState.CLOSED;
         emit EscrowClosed(reason);
         
-        escrowReserve.send(escrowerBalance);
-        payeeReserve.send(payeeBalance);
-        selfdestruct(msg.sender);
+        bool escrowSuccess = escrowReserve.send(escrowerBalance);
+        bool payeeSuccess = payeeReserve.send(payeeBalance);
+        
+        if(escrowSuccess && payeeSuccess) {
+            selfdestruct(msg.sender);
+        } else if (escrowSuccess) {
+            selfdestruct(escrowReserve);
+        } else if(payeeSuccess) {
+            selfdestruct(payeeReserve);
+        } else {
+            // There is a case where neither party is honest,
+            // whoever spots that will get the cash
+            selfdestruct(msg.sender);
+        }
     }
 
     function sendToEscrower(uint _amt) internal {

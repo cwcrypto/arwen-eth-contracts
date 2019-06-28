@@ -17,8 +17,9 @@ contract Escrow {
     event PuzzlePosted(bytes32 p);
     event EscrowClosed(EscrowCloseReason r);
     event Preimage(bytes32 i);
-    event Withdraw(address caller);
+    event Withdraw(WithdrawCase c);
 
+    enum WithdrawCase { BOTH, ESCROW_HONEST, PAYEE_HONEST, NONE}
     enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
     enum EscrowCloseReason { REFUND, PUZZLEREFUND, PUZZLESOLVE, CASHOUT }
 
@@ -264,12 +265,16 @@ contract EthEscrow is Escrow {
         bool payeeSuccess = payeeReserve.send(payeeBalance);
 
         if(escrowSuccess && payeeSuccess) {
+            emit Withdraw(WithdrawCase.BOTH);
             selfdestruct(msg.sender);
         } else if (escrowSuccess) {
+            emit Withdraw(WithdrawCase.ESCROW_HONEST);
             selfdestruct(escrowReserve);
         } else if(payeeSuccess) {
+            emit Withdraw(WithdrawCase.PAYEE_HONEST);
             selfdestruct(payeeReserve);
         } else {
+            emit Withdraw(WithdrawCase.NONE);
             // There is a case where neither party is honest,
             // whoever spots that will get the cash
             selfdestruct(msg.sender);

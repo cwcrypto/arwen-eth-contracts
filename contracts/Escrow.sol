@@ -270,7 +270,7 @@ contract EthEscrow is Escrow {
         } else {
             // There is a case where neither party is honest,
             // whoever spots that will get the cash
-            selfdestruct(msg.sender);
+            selfdestruct(escrowReserve);
         }
     }
 

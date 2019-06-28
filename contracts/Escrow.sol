@@ -268,8 +268,8 @@ contract EthEscrow is Escrow {
         } else if(payeeSuccess) {
             selfdestruct(payeeReserve);
         } else {
-            // There is a case where neither party is honest,
-            // whoever spots that will get the cash
+            // In the case both parties are dishonest, the escrower
+            // will be returned the funds. 
             selfdestruct(escrowReserve);
         }
     }

@@ -79,7 +79,6 @@ contract('Erc20Escrow', async (accounts) => {
 
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
         assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)));
-        // assert.equal((await erc20Escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
     it("Test refund escrow before expiry", async () => {
@@ -101,7 +100,6 @@ contract('Erc20Escrow', async (accounts) => {
 
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
         assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)));
-        // assert.equal((await expiredEscrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
     it("Test postPuzzle before expiry, refundPuzzle fails, solvePuzzle works", async () => {
@@ -136,7 +134,6 @@ contract('Erc20Escrow', async (accounts) => {
         gasMeter.TrackGasUsage("solvePuzzle", txResult.receipt);
 
         assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)));
-        // assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
     it("Test postPuzzle after expiry, refundPuzzle works", async () => {
@@ -164,6 +161,5 @@ contract('Erc20Escrow', async (accounts) => {
         gasMeter.TrackGasUsage("refundPuzzle", txResult.receipt);
 
         assert.isTrue(new BigNumber(800).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
-        // assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 });

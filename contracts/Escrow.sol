@@ -353,6 +353,7 @@ contract Erc20Escrow is Escrow {
     function closeEscrow(EscrowCloseReason reason) internal {
         escrowState = EscrowState.CLOSED;
         emit EscrowClosed(reason);
+        selfdestruct(msg.sender);
     }
 
     function sendToEscrower(uint _amt) internal {

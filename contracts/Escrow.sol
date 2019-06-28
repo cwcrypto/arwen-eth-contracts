@@ -17,9 +17,7 @@ contract Escrow {
     event PuzzlePosted(bytes32 p);
     event EscrowClosed(EscrowCloseReason r);
     event Preimage(bytes32 i);
-    event Withdraw(WithdrawCase c);
 
-    enum WithdrawCase { BOTH, ESCROW_HONEST, PAYEE_HONEST, NONE}
     enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
     enum EscrowCloseReason { REFUND, PUZZLEREFUND, PUZZLESOLVE, CASHOUT }
 
@@ -91,9 +89,9 @@ contract Escrow {
         require(verify(h, _eSig) == escrowTrade, "Invalid escrower cashout sig");
         require(verify(h, _pSig) == payeeTrade, "Invalid payee cashout sig");
 
-        closeEscrow(EscrowCloseReason.CASHOUT);
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
+        closeEscrow(EscrowCloseReason.CASHOUT);
     }
 
     /** Allows the escrower to refund the escrow after the `escrowTimelock` has been reached
@@ -118,9 +116,9 @@ contract Escrow {
         // Check signature
         require(verify(h, _eSig) == escrowRefund, "Invalid escrower sig");
 
-        closeEscrow(EscrowCloseReason.REFUND);
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
+        closeEscrow(EscrowCloseReason.REFUND);
     }
 
     /** Post a hash puzzle unlocks lastest trade in the escrow 
@@ -181,8 +179,8 @@ contract Escrow {
         require(h == puzzle, "Invalid preimage");
 
         emit Preimage(_preimage);
-        closeEscrow(EscrowCloseReason.PUZZLESOLVE);
         sendRemainingToPayee();
+        closeEscrow(EscrowCloseReason.PUZZLESOLVE);
     }
 
     /**
@@ -194,8 +192,8 @@ contract Escrow {
         inState(EscrowState.PUZZLE_POSTED)
         afterTimelock(puzzleTimelock)
     {
-        closeEscrow(EscrowCloseReason.PUZZLEREFUND);
         sendRemainingToEscrower();
+        closeEscrow(EscrowCloseReason.PUZZLEREFUND);
     }
 
     /** Verify a EC signature (v,r,s) on a message digest h
@@ -210,10 +208,7 @@ contract Escrow {
     /**
     * Moves escrow state to CLOSED and emits an event log that the escrow has been closed
     */
-    function closeEscrow(EscrowCloseReason reason) internal {
-        escrowState = EscrowState.CLOSED;
-        emit EscrowClosed(reason);
-    }
+    function closeEscrow(EscrowCloseReason reason) internal;
 
     /**
     * Abstract methods that must be implemented by derived classes
@@ -259,26 +254,30 @@ contract EthEscrow is Escrow {
         escrowState = EscrowState.OPEN;
     }
 
-    function withdrawFunds() public inState(EscrowState.CLOSED){
+    // function withdrawFunds() public inState(EscrowState.CLOSED){
         
-        bool escrowSuccess = escrowReserve.send(escrowerBalance);
-        bool payeeSuccess = payeeReserve.send(payeeBalance);
+        
 
-        if(escrowSuccess && payeeSuccess) {
-            emit Withdraw(WithdrawCase.BOTH);
-            selfdestruct(msg.sender);
-        } else if (escrowSuccess) {
-            emit Withdraw(WithdrawCase.ESCROW_HONEST);
-            selfdestruct(escrowReserve);
-        } else if(payeeSuccess) {
-            emit Withdraw(WithdrawCase.PAYEE_HONEST);
-            selfdestruct(payeeReserve);
-        } else {
-            emit Withdraw(WithdrawCase.NONE);
-            // There is a case where neither party is honest,
-            // whoever spots that will get the cash
-            selfdestruct(msg.sender);
-        }
+    //     // if(escrowSuccess && payeeSuccess) {
+    //     //     selfdestruct(msg.sender);
+    //     // } else if (escrowSuccess) {
+    //     //     selfdestruct(escrowReserve);
+    //     // } else if(payeeSuccess) {
+    //     //     selfdestruct(payeeReserve);
+    //     // } else {
+    //     //     // There is a case where neither party is honest,
+    //     //     // whoever spots that will get the cash
+    //     //     selfdestruct(msg.sender);
+    //     // }
+    // }
+
+     function closeEscrow(EscrowCloseReason reason) internal {
+        escrowState = EscrowState.CLOSED;
+        emit EscrowClosed(reason);
+        
+        escrowReserve.send(escrowerBalance);
+        payeeReserve.send(payeeBalance);
+        selfdestruct(msg.sender);
     }
 
     function sendToEscrower(uint _amt) internal {
@@ -349,6 +348,11 @@ contract Erc20Escrow is Escrow {
     function fundEscrow(address payable _from) public inState(EscrowState.UNFUNDED) {
         require(token.transferFrom(_from, address(this), escrowAmount));
         escrowState = EscrowState.OPEN;
+    }
+
+    function closeEscrow(EscrowCloseReason reason) internal {
+        escrowState = EscrowState.CLOSED;
+        emit EscrowClosed(reason);
     }
 
     function sendToEscrower(uint _amt) internal {

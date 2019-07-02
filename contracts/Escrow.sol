@@ -258,20 +258,9 @@ contract EthEscrow is Escrow {
         escrowState = EscrowState.CLOSED;
         emit EscrowClosed(reason);
         
-        bool escrowSuccess = escrowReserve.send(escrowerBalance);
-        bool payeeSuccess = payeeReserve.send(payeeBalance);
-        
-        if(escrowSuccess && payeeSuccess) {
-            selfdestruct(msg.sender);
-        } else if (escrowSuccess) {
-            selfdestruct(escrowReserve);
-        } else if(payeeSuccess) {
-            selfdestruct(payeeReserve);
-        } else {
-            // In the case both parties are dishonest, the escrower
-            // will be returned the funds. 
-            selfdestruct(escrowReserve);
-        }
+        escrowReserve.send(escrowerBalance);
+        payeeReserve.send(payeeBalance);
+        selfdestruct(escrowReserve);
     }
 
     function sendToEscrower(uint _amt) internal {
@@ -347,7 +336,7 @@ contract Erc20Escrow is Escrow {
     function closeEscrow(EscrowCloseReason reason) internal {
         escrowState = EscrowState.CLOSED;
         emit EscrowClosed(reason);
-        selfdestruct(msg.sender);
+        selfdestruct(escrowReserve);
     }
 
     function sendToEscrower(uint _amt) internal {

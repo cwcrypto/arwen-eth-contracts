@@ -18,7 +18,7 @@ contract Escrow {
     event EscrowClosed(EscrowCloseReason r);
     event Preimage(bytes32 i);
 
-    enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED, CLOSED }
+    enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED }
     enum EscrowCloseReason { REFUND, PUZZLEREFUND, PUZZLESOLVE, CASHOUT }
 
     /** Immutable State (only set once in constructor) */
@@ -255,7 +255,7 @@ contract EthEscrow is Escrow {
     }
 
      function closeEscrow(EscrowCloseReason reason) internal {
-        escrowState = EscrowState.CLOSED;
+        
         emit EscrowClosed(reason);
         
         escrowReserve.send(escrowerBalance);
@@ -334,7 +334,6 @@ contract Erc20Escrow is Escrow {
     }
 
     function closeEscrow(EscrowCloseReason reason) internal {
-        escrowState = EscrowState.CLOSED;
         emit EscrowClosed(reason);
         selfdestruct(escrowReserve);
     }

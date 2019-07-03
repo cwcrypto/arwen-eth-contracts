@@ -46,24 +46,6 @@ contract('EthEscrow', async (accounts) => {
         return escrow;
     }
 
-    /**
-     * Attempts to withdraw any available balances for the escrower or payee in
-     * the escrow and records the gas used by calling the withdraw methods
-     */
-    async function withdrawBalances(escrow: EthEscrowInstance) {
-        let escrowerBalance = await escrow.escrowerBalance();
-        if( escrowerBalance.toNumber() > 0) {
-            let txResult = await escrow.withdrawEscrowerFunds();
-            gasMeter.TrackGasUsage("Withdraw Escrower Balance", txResult.receipt);
-        }
-
-        let payeeBalance = await escrow.payeeBalance();
-        if( payeeBalance.toNumber() > 0) {
-            let txResult = await escrow.withdrawPayeeFunds();
-            gasMeter.TrackGasUsage("Withdraw Payee Balance", txResult.receipt);
-        }
-    }
-
     it("Test construct Eth Escrow", async () => {
         var escrowAmount = 1000;
         var escrowTimelock = getCurrentTimeUnixEpoch();
@@ -82,10 +64,8 @@ contract('EthEscrow', async (accounts) => {
         var txResult = await escrow.cashout(400, eSig.signature, pSig.signature);
         gasMeter.TrackGasUsage("cashout", txResult.receipt);
 
-        await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600");
         assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "400");
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
     it("Test refund escrow before expiry", async () => {
@@ -105,10 +85,8 @@ contract('EthEscrow', async (accounts) => {
         var txResult = await expiredEscrow.refund(400, eSig.signature);
         gasMeter.TrackGasUsage("refund", txResult.receipt);
 
-        await withdrawBalances(expiredEscrow);
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600");
         assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "400");
-        assert.equal((await expiredEscrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
     it("Test postPuzzle before expiry, refundPuzzle fails, solvePuzzle works", async () => {
@@ -126,9 +104,6 @@ contract('EthEscrow', async (accounts) => {
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
-        await withdrawBalances(escrow);
-        assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600");
-        assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "200");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
 
         // Refunding the puzzle should fail because we have not yet hit the timelock
@@ -143,9 +118,7 @@ contract('EthEscrow', async (accounts) => {
         var txResult = await escrow.solvePuzzle(preimage);
         gasMeter.TrackGasUsage("solvePuzzle", txResult.receipt);
 
-        await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "400");
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 
     it("Test postPuzzle after expiry, refundPuzzle works", async () => {
@@ -166,17 +139,12 @@ contract('EthEscrow', async (accounts) => {
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
-        await withdrawBalances(escrow);
-        assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600");
-        assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "200");
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
         var txResult = await escrow.refundPuzzle();
         gasMeter.TrackGasUsage("refundPuzzle", txResult.receipt);
 
-        await withdrawBalances(escrow);
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "800");
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.CLOSED);
     });
 });

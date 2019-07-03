@@ -258,6 +258,9 @@ contract EthEscrow is Escrow {
         
         emit EscrowClosed(reason);
         
+        // Below we use send rather than transfer because we do not want to have an exception throw
+        // Regardless of who is mallicious, all remianing funds will be self-destrcuted
+        // the escrower
         escrowReserve.send(escrowerBalance);
         payeeReserve.send(payeeBalance);
         selfdestruct(escrowReserve);
@@ -335,6 +338,8 @@ contract Erc20Escrow is Escrow {
 
     function closeEscrow(EscrowCloseReason reason) internal {
         emit EscrowClosed(reason);
+        
+        // If either party is mallicious, all remaining funds are transfered to the escrower regardless of what happens
         selfdestruct(escrowReserve);
     }
 

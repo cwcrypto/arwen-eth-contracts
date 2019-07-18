@@ -221,6 +221,7 @@ contract Escrow {
     function () external payable inState(EscrowState.UNFUNDED) {
         require(msg.data.length == 0);
         require(msg.value == escrowAmount);
+        escrowState = EscrowState.OPEN;
     }
 }
 

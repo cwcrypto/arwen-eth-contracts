@@ -217,6 +217,11 @@ contract Escrow {
     function sendRemainingToEscrower() internal;
     function sendToPayee(uint _amt) internal;
     function sendRemainingToPayee() internal;
+
+    function () external payable inState(EscrowState.UNFUNDED) {
+        require(msg.data.length == 0);
+        require(msg.value == escrowAmount);
+    }
 }
 
 
@@ -237,10 +242,10 @@ contract EthEscrow is Escrow {
         address _escrowRefund,
         address payable _payeeReserve,
         address _payeeTrade,
+        uint _escrowAmt,
         uint _timelock
     ) 
         public
-        payable
     Escrow(
         _escrowReserve,
         _escrowTrade,
@@ -250,8 +255,8 @@ contract EthEscrow is Escrow {
         _timelock
     )
     {
-        escrowAmount = msg.value;
-        escrowState = EscrowState.OPEN;
+        escrowAmount = _escrowAmt;
+        escrowState = EscrowState.UNFUNDED;
     }
 
      function closeEscrow(EscrowCloseReason reason) internal {

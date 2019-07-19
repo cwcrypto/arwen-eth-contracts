@@ -219,8 +219,14 @@ contract Escrow {
     function sendRemainingToPayee() internal;
 
     function () external payable inState(EscrowState.UNFUNDED) {
-        require(msg.data.length == 0);
-        require(msg.value == escrowAmount);
+    }
+
+    function openEscrow() external inState(EscrowState.UNFUNDED){
+        require(address(this).balance >= escrowAmount);
+
+        if(address(this).balance > escrowAmount) {
+            escrowReserve.send(address(this).balance - escrowAmount);
+        }
         escrowState = EscrowState.OPEN;
     }
 }

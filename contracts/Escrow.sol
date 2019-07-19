@@ -221,7 +221,7 @@ contract Escrow {
     function () external payable inState(EscrowState.UNFUNDED) {
     }
 
-    function openEscrow() external inState(EscrowState.UNFUNDED){
+    function openEscrow() public inState(EscrowState.UNFUNDED){
         require(address(this).balance >= escrowAmount);
 
         if(address(this).balance > escrowAmount) {
@@ -263,7 +263,6 @@ contract EthEscrow is Escrow {
     )
     {
         escrowAmount = _escrowAmt;
-        escrowState = EscrowState.UNFUNDED;
     }
 
      function closeEscrow(EscrowCloseReason reason) internal {

@@ -36,11 +36,23 @@ contract('EthEscrow', async (accounts) => {
         var escrow = await EthEscrow.new( 
             TSS.eReserve.address, TSS.eTrade.address, TSS.eRefund.address,
             TSS.pReserve.address, TSS.pTrade.address,
-            escrowTimelock,
-            { from: mainAccount, value: escrowAmount}
+            escrowAmount,
+            escrowTimelock
         );
-        var receipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
-        gasMeter.TrackGasUsage("EthEscrow constructor", receipt);
+
+        var deployReceipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
+        gasMeter.TrackGasUsage("EthEscrow constructor", deployReceipt);
+
+        // Seems like we are looping over this line for some reason
+        var fundTxReceipt = await web3.eth.sendTransaction({
+            from: mainAccount, 
+            to: escrow.address,
+            value: escrowAmount
+          });
+        gasMeter.TrackGasUsage("EthEscrow fallback funding", fundTxReceipt);
+
+        var openTx = await escrow.openEscrow({from: mainAccount, gas: 100000});
+        gasMeter.TrackGasUsage("EthEscrow openEscrow", openTx.receipt);
 
         assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
         return escrow;

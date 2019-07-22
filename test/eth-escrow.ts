@@ -37,7 +37,8 @@ contract('EthEscrow', async (accounts) => {
             TSS.eReserve.address, TSS.eTrade.address, TSS.eRefund.address,
             TSS.pReserve.address, TSS.pTrade.address,
             escrowAmount,
-            escrowTimelock
+            escrowTimelock,
+            { from: mainAccount, value: 0, gas: 2000000 } //1758547 is how much truffle says
         );
 
         var deployReceipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
@@ -47,7 +48,8 @@ contract('EthEscrow', async (accounts) => {
         var fundTxReceipt = await web3.eth.sendTransaction({
             from: mainAccount, 
             to: escrow.address,
-            value: escrowAmount
+            value: escrowAmount,
+            gas: 100000 // only needs to be 2300 but ganache is dumb
           });
         gasMeter.TrackGasUsage("EthEscrow fallback funding", fundTxReceipt);
 

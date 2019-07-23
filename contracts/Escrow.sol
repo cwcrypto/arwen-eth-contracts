@@ -217,6 +217,18 @@ contract Escrow {
     function sendRemainingToEscrower() internal;
     function sendToPayee(uint _amt) internal;
     function sendRemainingToPayee() internal;
+
+    function () external payable inState(EscrowState.UNFUNDED) {
+    }
+
+    function openEscrow() public inState(EscrowState.UNFUNDED){
+        require(address(this).balance >= escrowAmount);
+
+        if(address(this).balance > escrowAmount) {
+            escrowReserve.send(address(this).balance - escrowAmount);
+        }
+        escrowState = EscrowState.OPEN;
+    }
 }
 
 
@@ -237,10 +249,10 @@ contract EthEscrow is Escrow {
         address _escrowRefund,
         address payable _payeeReserve,
         address _payeeTrade,
+        uint _escrowAmt,
         uint _timelock
     ) 
         public
-        payable
     Escrow(
         _escrowReserve,
         _escrowTrade,
@@ -250,8 +262,7 @@ contract EthEscrow is Escrow {
         _timelock
     )
     {
-        escrowAmount = msg.value;
-        escrowState = EscrowState.OPEN;
+        escrowAmount = _escrowAmt;
     }
 
      function closeEscrow(EscrowCloseReason reason) internal {
@@ -280,6 +291,33 @@ contract EthEscrow is Escrow {
 
     function sendRemainingToPayee() internal {
         payeeBalance += address(this).balance - payeeBalance - escrowerBalance;
+    }
+}
+
+contract EthEscrowTest is EthEscrow
+{
+    constructor(
+        address payable _escrowReserve,
+        address _escrowTrade,
+        address _escrowRefund,
+        address payable _payeeReserve,
+        address _payeeTrade,
+        uint _escrowAmt,
+        uint _timelock
+    ) 
+        public
+    EthEscrow(
+        _escrowReserve,
+        _escrowTrade,
+        _escrowRefund,
+        _payeeReserve,
+        _payeeTrade,
+        _escrowAmt,
+        _timelock
+    )
+    {}
+
+    function fundThisThing() external payable inState(EscrowState.UNFUNDED) {
     }
 }
 

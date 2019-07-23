@@ -3,7 +3,7 @@ import Web3 from 'web3';
 const web3 = new Web3('http://localhost:9545');
 
 // Import truffle contract abstractions
-const EthEscrow = artifacts.require("EthEscrow");
+const EthEscrow = artifacts.require("EthEscrowTest");
 
 import { EthEscrowInstance } from '../types/truffle-contracts';
 import { fail } from 'assert';
@@ -36,11 +36,31 @@ contract('EthEscrow', async (accounts) => {
         var escrow = await EthEscrow.new( 
             TSS.eReserve.address, TSS.eTrade.address, TSS.eRefund.address,
             TSS.pReserve.address, TSS.pTrade.address,
+            escrowAmount,
             escrowTimelock,
-            { from: mainAccount, value: escrowAmount}
+            { from: mainAccount, value: 0, gas: 2000000 } //1808107 is how much truffle says
         );
-        var receipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
-        gasMeter.TrackGasUsage("EthEscrow constructor", receipt);
+
+        var deployReceipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
+        gasMeter.TrackGasUsage("EthEscrow constructor", deployReceipt);
+
+        // Seems like we are looping over this line for some reason
+        // var fundTxReceipt = await web3.eth.sendTransaction({
+        //     from: mainAccount, 
+        //     to: escrow.address,
+        //     value: escrowAmount,
+        //     gas: 100000 // only needs to be 2300 but ganache is dumb
+        //   });
+
+        var fundTxReceipt = await escrow.fundThisThing({
+            from: mainAccount,
+            value: escrowAmount,
+            gas: 100000
+            });
+        gasMeter.TrackGasUsage("EthEscrow fallback funding", fundTxReceipt.receipt);
+
+        var openTx = await escrow.openEscrow({from: mainAccount, gas: 100000});
+        gasMeter.TrackGasUsage("EthEscrow openEscrow", openTx.receipt);
 
         assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
         return escrow;

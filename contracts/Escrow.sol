@@ -294,6 +294,33 @@ contract EthEscrow is Escrow {
     }
 }
 
+contract EthEscrowTest is EthEscrow
+{
+    constructor(
+        address payable _escrowReserve,
+        address _escrowTrade,
+        address _escrowRefund,
+        address payable _payeeReserve,
+        address _payeeTrade,
+        uint _escrowAmt,
+        uint _timelock
+    ) 
+        public
+    EthEscrow(
+        _escrowReserve,
+        _escrowTrade,
+        _escrowRefund,
+        _payeeReserve,
+        _payeeTrade,
+        _escrowAmt,
+        _timelock
+    )
+    {}
+
+    function fundThisThing() external payable inState(EscrowState.UNFUNDED) {
+    }
+}
+
 
 /** 
 * @title CWC Escrow Contract backed by a ERC20 token

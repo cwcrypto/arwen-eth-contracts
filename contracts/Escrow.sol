@@ -14,12 +14,12 @@ import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 contract Escrow {
 
     // Events
-    event PuzzlePosted(bytes32 p);
-    event EscrowClosed(EscrowCloseReason r);
-    event Preimage(bytes32 i);
+    event PuzzlePosted(bytes32 puzzle);
+    event EscrowClosed(EscrowCloseReason reason, bytes32 sighash);
+    event Preimage(bytes32 preimage);
 
     enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED }
-    enum EscrowCloseReason { REFUND, PUZZLEREFUND, PUZZLESOLVE, CASHOUT }
+    enum EscrowCloseReason { REFUND, PUZZLE_REFUND, PUZZLE_SOLVE, CASHOUT }
 
     /** Immutable State (only set once in constructor) */
     address payable escrowReserve;
@@ -34,6 +34,7 @@ contract Escrow {
 
     /** Mutable state */
     EscrowState public escrowState;
+    bytes32 public puzzleSighash;
     bytes32 public puzzle;
     uint public puzzleTimelock;
 
@@ -91,7 +92,7 @@ contract Escrow {
 
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
-        closeEscrow(EscrowCloseReason.CASHOUT);
+        closeEscrow(EscrowCloseReason.CASHOUT, h);
     }
 
     /** Allows the escrower to refund the escrow after the `escrowTimelock` has been reached
@@ -108,17 +109,17 @@ contract Escrow {
         inState(EscrowState.OPEN)
         afterTimelock(escrowTimelock)
     {
-        bytes32 h = keccak256(abi.encodePacked(
+        bytes32 sighash = keccak256(abi.encodePacked(
             address(this),
             _prevAmountTraded
         ));
 
         // Check signature
-        require(verify(h, _eSig) == escrowRefund, "Invalid escrower sig");
+        require(verify(sighash, _eSig) == escrowRefund, "Invalid escrower sig");
 
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
-        closeEscrow(EscrowCloseReason.REFUND);
+        closeEscrow(EscrowCloseReason.REFUND, sighash);
     }
 
     /** Post a hash puzzle unlocks lastest trade in the escrow 
@@ -143,7 +144,7 @@ contract Escrow {
         public
         inState(EscrowState.OPEN)
     {
-        bytes32 h = keccak256(abi.encodePacked(
+        bytes32 sighash = keccak256(abi.encodePacked(
             address(this),
             _prevAmountTraded,
             _tradeAmount,
@@ -151,12 +152,13 @@ contract Escrow {
             _puzzleTimelock
         ));
 
-        require(verify(h, eSig) == escrowTrade, "Invalid escrower sig");
-        require(verify(h, pSig) == payeeTrade, "Invalid payee sig");
+        require(verify(sighash, eSig) == escrowTrade, "Invalid escrower sig");
+        require(verify(sighash, pSig) == payeeTrade, "Invalid payee sig");
 
         // Save the puzzle parameters
         puzzle = _puzzle;
         puzzleTimelock = _puzzleTimelock;
+        puzzleSighash = sighash;
 
         escrowState = EscrowState.PUZZLE_POSTED;
         emit PuzzlePosted(puzzle);
@@ -180,7 +182,7 @@ contract Escrow {
 
         emit Preimage(_preimage);
         sendRemainingToPayee();
-        closeEscrow(EscrowCloseReason.PUZZLESOLVE);
+        closeEscrow(EscrowCloseReason.PUZZLE_SOLVE, puzzleSighash);
     }
 
     /**
@@ -193,7 +195,7 @@ contract Escrow {
         afterTimelock(puzzleTimelock)
     {
         sendRemainingToEscrower();
-        closeEscrow(EscrowCloseReason.PUZZLEREFUND);
+        closeEscrow(EscrowCloseReason.PUZZLE_REFUND, puzzleSighash);
     }
 
     /** Verify a EC signature (v,r,s) on a message digest h
@@ -208,7 +210,7 @@ contract Escrow {
     /**
     * Moves escrow state to CLOSED and emits an event log that the escrow has been closed
     */
-    function closeEscrow(EscrowCloseReason reason) internal;
+    function closeEscrow(EscrowCloseReason reason, bytes32 sighash) internal;
 
     /**
     * Abstract methods that must be implemented by derived classes
@@ -252,7 +254,7 @@ contract EthEscrow is Escrow {
         uint _escrowAmt,
         uint _timelock
     ) 
-        public
+    public
     Escrow(
         _escrowReserve,
         _escrowTrade,
@@ -265,9 +267,8 @@ contract EthEscrow is Escrow {
         escrowAmount = _escrowAmt;
     }
 
-     function closeEscrow(EscrowCloseReason reason) internal {
-        
-        emit EscrowClosed(reason);
+    function closeEscrow(EscrowCloseReason reason, bytes32 sighash) internal {
+        emit EscrowClosed(reason, sighash);
         
         // Below we use send rather than transfer because we do not want to have an exception throw
         // Regardless of who is mallicious, all remianing funds will be self-destrcuted
@@ -374,8 +375,8 @@ contract Erc20Escrow is Escrow {
         escrowState = EscrowState.OPEN;
     }
 
-    function closeEscrow(EscrowCloseReason reason) internal {
-        emit EscrowClosed(reason);
+    function closeEscrow(EscrowCloseReason reason, bytes32 sighash) internal {
+        emit EscrowClosed(reason, sighash);
         
         // If either party is mallicious, all remaining funds are transfered to the escrower regardless of what happens
         selfdestruct(escrowReserve);

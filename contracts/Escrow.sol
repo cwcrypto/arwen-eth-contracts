@@ -4,7 +4,6 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 
 
-
 /** 
 * @title CWC Escrow Contract
 * @dev Implementation of a CWC unidirectional escrow payment channel
@@ -50,21 +49,23 @@ contract Escrow {
     }
 
     constructor(
+        uint _escrowAmt,
+        uint _timelock,
         address payable _escrowReserve,
         address _escrowTrade,
         address _escrowRefund,
         address payable _payeeReserve,
-        address _payeeTrade,
-        uint _timelock
+        address _payeeTrade
     )
         internal
     {
+        escrowAmount = _escrowAmt;
+        escrowTimelock = _timelock;
         escrowReserve = _escrowReserve;
         escrowTrade = _escrowTrade;
         escrowRefund = _escrowRefund;
         payeeReserve = _payeeReserve;
         payeeTrade = _payeeTrade;
-        escrowTimelock = _timelock;
     }
 
     /** Cashout the escrow sending the final balances after trading
@@ -81,18 +82,18 @@ contract Escrow {
         public
         inState(EscrowState.OPEN)
     {
-        bytes32 h = keccak256(abi.encodePacked(
+        bytes32 sighash = keccak256(abi.encodePacked(
             address(this),
             _prevAmountTraded
         ));
 
         // Check signatures
-        require(verify(h, _eSig) == escrowTrade, "Invalid escrower cashout sig");
-        require(verify(h, _pSig) == payeeTrade, "Invalid payee cashout sig");
+        require(verify(sighash, _eSig) == escrowTrade, "Invalid escrower cashout sig");
+        require(verify(sighash, _pSig) == payeeTrade, "Invalid payee cashout sig");
 
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
-        closeEscrow(EscrowCloseReason.CASHOUT, h);
+        closeEscrow(EscrowCloseReason.CASHOUT, sighash);
     }
 
     /** Allows the escrower to refund the escrow after the `escrowTimelock` has been reached
@@ -246,25 +247,25 @@ contract EthEscrow is Escrow {
     uint public payeeBalance;
 
     constructor(
+        uint _escrowAmt,
+        uint _timelock,
         address payable _escrowReserve,
         address _escrowTrade,
         address _escrowRefund,
         address payable _payeeReserve,
-        address _payeeTrade,
-        uint _escrowAmt,
-        uint _timelock
+        address _payeeTrade
     ) 
     public
     Escrow(
+        _escrowAmt,
+        _timelock,
         _escrowReserve,
         _escrowTrade,
         _escrowRefund,
         _payeeReserve,
-        _payeeTrade,
-        _timelock
+        _payeeTrade
     )
     {
-        escrowAmount = _escrowAmt;
     }
 
     function closeEscrow(EscrowCloseReason reason, bytes32 sighash) internal {
@@ -295,33 +296,6 @@ contract EthEscrow is Escrow {
     }
 }
 
-contract EthEscrowTest is EthEscrow
-{
-    constructor(
-        address payable _escrowReserve,
-        address _escrowTrade,
-        address _escrowRefund,
-        address payable _payeeReserve,
-        address _payeeTrade,
-        uint _escrowAmt,
-        uint _timelock
-    ) 
-        public
-    EthEscrow(
-        _escrowReserve,
-        _escrowTrade,
-        _escrowRefund,
-        _payeeReserve,
-        _payeeTrade,
-        _escrowAmt,
-        _timelock
-    )
-    {}
-
-    function fundThisThing() external payable inState(EscrowState.UNFUNDED) {
-    }
-}
-
 
 /** 
 * @title CWC Escrow Contract backed by a ERC20 token
@@ -337,26 +311,25 @@ contract Erc20Escrow is Escrow {
     constructor(
         address _tknAddr,
         uint _tknAmt,
+        uint _timelock,
         address payable _escrowReserve,
         address _escrowTrade,
         address _escrowRefund,
         address payable _payeeReserve,
-        address _payeeTrade,
-        uint _timelock
+        address _payeeTrade
     )
         public
         payable
     Escrow(
+        _tknAmt,
+        _timelock,
         _escrowReserve,
         _escrowTrade,
         _escrowRefund,
         _payeeReserve,
-        _payeeTrade,
-        _timelock
+        _payeeTrade
     )
-    {
-        escrowAmount = _tknAmt;
-        
+    {   
         // Validate the token address implements the ERC 20 standard
         token = ERC20(_tknAddr);
         // Start in UNFUNDED state until the fundEscrow function is called

@@ -6,7 +6,7 @@ const web3 = new Web3('http://localhost:9545');
 const Erc20Escrow = artifacts.require("Erc20Escrow");
 const TestToken = artifacts.require("TestToken");
 
-import { Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts/index.d';
+import { Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
 import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState } from './common';
@@ -37,18 +37,8 @@ contract('Erc20Escrow', async (accounts) => {
      * @param escrowTimelcok The refund timelock of this escrow
      */
     async function setupERC20Escrow(escrowAmount: number, escrowTimelock: number) : Promise<Erc20EscrowInstance> {
-        var escrow = await Erc20Escrow.new(
-            testToken.address,
-            escrowAmount,
-            TSS.eReserve.address, TSS.eTrade.address, TSS.eRefund.address,
-            TSS.pReserve.address, TSS.pTrade.address,
-            escrowTimelock,
-            { from: mainAccount }
-        );
+        var escrow = await deployERC20Escrow(testToken.address, escrowAmount, escrowTimelock);
 
-        let receipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
-        gasMeter.TrackGasUsage("ERC20Escrow constructor", receipt);
-        
         // Approve escrow contract to transfer the tokens on behalf of mainAccount
         var txResult = await testToken.approve(escrow.address, escrowAmount, {from: mainAccount});
         gasMeter.TrackGasUsage("ERC20 token approve", txResult.receipt);
@@ -61,6 +51,20 @@ contract('Erc20Escrow', async (accounts) => {
         return escrow;
     }
 
+    async function deployERC20Escrow(tknAddr: string, escrowAmount: number, escrowTimelock: number): Promise<Erc20EscrowInstance> {
+        var escrow = await Erc20Escrow.new(
+            tknAddr,
+            escrowAmount,
+            escrowTimelock,
+            TSS.eReserve.address, TSS.eTrade.address, TSS.eRefund.address,
+            TSS.pReserve.address, TSS.pTrade.address,
+            { from: mainAccount }
+        );
+
+        let receipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
+        gasMeter.TrackGasUsage("ERC20Escrow constructor", receipt);
+        return escrow;
+    }
     it("Test construct Erc20 Escrow", async () => {
         var escrowAmount = 1000;
         var escrowTimelock = getCurrentTimeUnixEpoch();
@@ -113,7 +117,7 @@ contract('Erc20Escrow', async (accounts) => {
         var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, 
             eSig.signature,
             pSig.signature
-            );
+        );
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
@@ -148,7 +152,7 @@ contract('Erc20Escrow', async (accounts) => {
         var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, 
             eSig.signature,
             pSig.signature
-            );
+        );
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted

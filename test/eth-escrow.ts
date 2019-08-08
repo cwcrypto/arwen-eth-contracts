@@ -4,6 +4,7 @@ const web3 = new Web3('http://localhost:9545');
 
 // Import truffle contract abstractions
 const EthEscrow = artifacts.require("EthEscrow");
+const EscrowFactory = artifacts.require("EscrowFactory");
 
 import { EthEscrowInstance } from '../types/truffle-contracts';
 import { fail } from 'assert';
@@ -33,7 +34,8 @@ contract('EthEscrow', async (accounts) => {
      * @param escrowTimelock The refund timelock of this escrow
      */
     async function setupEthEscrow(escrowAmount: number, escrowTimelock: number) : Promise<EthEscrowInstance> {
-        var escrow = await deployEthEscrow(escrowAmount, escrowTimelock);
+        // var escrow = await deployEthEscrow(escrowAmount, escrowTimelock);
+        var escrow = await deployEthEscrowFromFactory(escrowAmount, escrowTimelock);
         
         // Fund Escrow by sending directly to the contract using the fallback
         // function. This requires a cast to any until truffle-typings adds
@@ -63,6 +65,30 @@ contract('EthEscrow', async (accounts) => {
         var deployReceipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
         gasMeter.TrackGasUsage("EthEscrow constructor", deployReceipt);
         return escrow;
+    }
+
+    async function deployEthEscrowFromFactory(escrowAmount: number, escrowTimelock: number) : Promise<EthEscrowInstance> {
+        var escrowFactory = await EscrowFactory.deployed();
+        var txResult = await escrowFactory.createEthEscrow(
+            escrowAmount,
+            escrowTimelock,
+            TSS.eReserve.address,
+            TSS.eTrade.address,
+            TSS.eRefund.address,
+            TSS.pReserve.address,
+            TSS.pTrade.address,
+            { from: mainAccount }
+        );
+        gasMeter.TrackGasUsage("Factory createEthEscrow", txResult.receipt);
+
+        // Extract escrow contract address from logs
+        var logs = txResult.logs;
+        assert.equal(logs.length, 1);
+        var escrowCreatedEvent = logs[0];
+        assert.equal(escrowCreatedEvent.event, "EscrowCreated");
+
+        // Create a EthEscrow contract instance at the new escrow address
+        return await EthEscrow.at(escrowCreatedEvent.args.escrowAddress);
     }
 
     it("Test construct Eth Escrow", async () => {

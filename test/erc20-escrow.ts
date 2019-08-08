@@ -3,6 +3,7 @@ import Web3 from 'web3';
 const web3 = new Web3('http://localhost:9545');
 
 // Import truffle contract abstractions
+const EscrowFactory = artifacts.require("EscrowFactory");
 const Erc20Escrow = artifacts.require("Erc20Escrow");
 const TestToken = artifacts.require("TestToken");
 
@@ -37,7 +38,8 @@ contract('Erc20Escrow', async (accounts) => {
      * @param escrowTimelcok The refund timelock of this escrow
      */
     async function setupERC20Escrow(escrowAmount: number, escrowTimelock: number) : Promise<Erc20EscrowInstance> {
-        var escrow = await deployERC20Escrow(testToken.address, escrowAmount, escrowTimelock);
+        // var escrow = await deployERC20Escrow(testToken.address, escrowAmount, escrowTimelock);
+        var escrow = await deployERC20EscrowFromFactory(testToken.address, escrowAmount, escrowTimelock);
 
         // Approve escrow contract to transfer the tokens on behalf of mainAccount
         var txResult = await testToken.approve(escrow.address, escrowAmount, {from: mainAccount});
@@ -65,6 +67,32 @@ contract('Erc20Escrow', async (accounts) => {
         gasMeter.TrackGasUsage("ERC20Escrow constructor", receipt);
         return escrow;
     }
+
+    async function deployERC20EscrowFromFactory(tknAddr: string, escrowAmount: number, escrowTimelock: number) : Promise<Erc20EscrowInstance> {
+        var escrowFactory = await EscrowFactory.deployed();
+        var txResult = await escrowFactory.createErc20Escrow(
+            tknAddr,
+            escrowAmount,
+            escrowTimelock,
+            TSS.eReserve.address,
+            TSS.eTrade.address,
+            TSS.eRefund.address,
+            TSS.pReserve.address,
+            TSS.pTrade.address,
+            { from: mainAccount }
+        );
+        gasMeter.TrackGasUsage("Factory createEthEscrow", txResult.receipt);
+
+        // Extract escrow contract address from logs
+        var logs = txResult.logs;
+        assert.equal(logs.length, 1);
+        var escrowCreatedEvent = logs[0];
+        assert.equal(escrowCreatedEvent.event, "EscrowCreated");
+
+        // Create a EthEscrow contract instance at the new escrow address
+        return await Erc20Escrow.at(escrowCreatedEvent.args.escrowAddress);
+    }
+
     it("Test construct Erc20 Escrow", async () => {
         var escrowAmount = 1000;
         var escrowTimelock = getCurrentTimeUnixEpoch();

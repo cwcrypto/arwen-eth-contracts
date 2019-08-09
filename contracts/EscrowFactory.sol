@@ -1,10 +1,9 @@
 pragma solidity ^0.5.0;
 
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "./Escrow.sol";
+import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
-
-contract EscrowFactory {
+contract EscrowFactory is Ownable {
     constructor () public {}
 
     event EscrowCreated(
@@ -83,5 +82,9 @@ contract EscrowFactory {
         ));
 
         emit EscrowCreated(escrowParamsHash, address(escrow));
+    }
+
+    function selfDestruct() public onlyOwner {
+        selfdestruct(msg.sender);
     }
 }

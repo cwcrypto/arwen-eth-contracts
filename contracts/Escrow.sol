@@ -3,8 +3,7 @@ pragma solidity ^0.5.0;
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 
-
-/** 
+/**
 * @title CWC Escrow Contract
 * @dev Implementation of a CWC unidirectional escrow payment channel
 * @dev Abstract contract with methods that must be implemented for either ETH
@@ -13,6 +12,7 @@ import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 contract Escrow {
 
     // Events
+    event EscrowOpened();
     event PuzzlePosted(bytes32 puzzle);
     event EscrowClosed(EscrowCloseReason reason, bytes32 sighash);
     event Preimage(bytes32 preimage);
@@ -123,7 +123,7 @@ contract Escrow {
         closeEscrow(EscrowCloseReason.REFUND, sighash);
     }
 
-    /** Post a hash puzzle unlocks lastest trade in the escrow 
+    /** Post a hash puzzle unlocks lastest trade in the escrow
     * @dev Must be signed by both the escrower and payee trade keys
     * @dev Must be in OPEN state
     * @param _prevAmountTraded The total amount traded to the payee in the
@@ -220,28 +220,18 @@ contract Escrow {
     function sendRemainingToEscrower() internal;
     function sendToPayee(uint _amt) internal;
     function sendRemainingToPayee() internal;
-
-    function () external payable inState(EscrowState.UNFUNDED) {
-    }
-
-    function openEscrow() public inState(EscrowState.UNFUNDED){
-        require(address(this).balance >= escrowAmount);
-
-        if(address(this).balance > escrowAmount) {
-            escrowReserve.send(address(this).balance - escrowAmount);
-        }
-        escrowState = EscrowState.OPEN;
-    }
 }
 
 
-/** 
+/**
 * @title CWC Escrow Contract backed by ETH
 * @dev Implementation of a CWC unidirectional escrow payment channel using ETH directly
 * @dev Escrow starts in the OPEN state because it is funded in the constructor
 * by sending `escrowAmount` of ETH with the transaction
 */
 contract EthEscrow is Escrow {
+
+    event EscrowFunded(uint amountFunded);
 
     uint public escrowerBalance;
     uint public payeeBalance;
@@ -254,7 +244,7 @@ contract EthEscrow is Escrow {
         address _escrowRefund,
         address payable _payeeReserve,
         address _payeeTrade
-    ) 
+    )
     public
     Escrow(
         _escrowAmt,
@@ -268,9 +258,23 @@ contract EthEscrow is Escrow {
     {
     }
 
+    function () external payable inState(EscrowState.UNFUNDED) {
+        emit EscrowFunded(address(this).balance);
+    }
+
+    function openEscrow() public inState(EscrowState.UNFUNDED) {
+        require(address(this).balance >= escrowAmount, "Escrow not funded");
+
+        if(address(this).balance > escrowAmount) {
+            escrowReserve.send(address(this).balance - escrowAmount);
+        }
+        escrowState = EscrowState.OPEN;
+        emit EscrowOpened();
+    }
+
     function closeEscrow(EscrowCloseReason reason, bytes32 sighash) internal {
         emit EscrowClosed(reason, sighash);
-        
+
         // Below we use send rather than transfer because we do not want to have an exception throw
         // Regardless of who is mallicious, all remianing funds will be self-destrcuted
         // the escrower
@@ -297,7 +301,7 @@ contract EthEscrow is Escrow {
 }
 
 
-/** 
+/**
 * @title CWC Escrow Contract backed by a ERC20 token
 * @dev Implementation of a CWC unidirectional escrow payment channel using an arbitrary ERC20 token
 * @dev Escrow starts in the UNFUNDED state and only moves to OPEN once the
@@ -329,7 +333,7 @@ contract Erc20Escrow is Escrow {
         _payeeReserve,
         _payeeTrade
     )
-    {   
+    {
         // Validate the token address implements the ERC 20 standard
         token = ERC20(_tknAddr);
         // Start in UNFUNDED state until the fundEscrow function is called
@@ -338,19 +342,20 @@ contract Erc20Escrow is Escrow {
 
     /**
     * Attempts to transfer escrowAmount into this contract
-    * @dev Will fail unless the _from address has approved this contract to *
+    * @dev Will fail unless the _from address has approved this contract to
     * transfer at least `escrowAmount` using the `approve` method of the token
     * contract
     * @param _from The address to transfer the tokens from
     */
     function fundEscrow(address payable _from) public inState(EscrowState.UNFUNDED) {
-        require(token.transferFrom(_from, address(this), escrowAmount));
+        require(token.transferFrom(_from, address(this), escrowAmount), "Token Transfer failed");
         escrowState = EscrowState.OPEN;
+        emit EscrowOpened();
     }
 
     function closeEscrow(EscrowCloseReason reason, bytes32 sighash) internal {
         emit EscrowClosed(reason, sighash);
-        
+
         // If either party is mallicious, all remaining funds are transfered to the escrower regardless of what happens
         selfdestruct(escrowReserve);
     }

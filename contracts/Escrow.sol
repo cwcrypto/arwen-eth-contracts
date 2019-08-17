@@ -3,6 +3,7 @@ pragma solidity ^0.5.0;
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 
+
 /**
 * @title CWC Escrow Contract
 * @dev Implementation of a CWC unidirectional escrow payment channel
@@ -11,14 +12,24 @@ import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 */
 contract Escrow {
 
+    enum EscrowState {
+        Unfunded,
+        Open,
+        PuzzlePosted
+    }
+
+    enum EscrowCloseReason {
+        Refund,
+        PuzzleRefund,
+        PuzzleSolve,
+        Cashout
+    }
+
     // Events
     event EscrowOpened();
     event PuzzlePosted(bytes32 puzzle);
     event EscrowClosed(EscrowCloseReason reason, bytes32 sighash);
     event Preimage(bytes32 preimage);
-
-    enum EscrowState { UNFUNDED, OPEN, PUZZLE_POSTED }
-    enum EscrowCloseReason { REFUND, PUZZLE_REFUND, PUZZLE_SOLVE, CASHOUT }
 
     /** Immutable State (only set once in constructor) */
     address payable escrowReserve;
@@ -70,7 +81,7 @@ contract Escrow {
 
     /** Cashout the escrow sending the final balances after trading
     * @dev Must be signed by both the escrower and payee trade keys
-    * @dev Must be in OPEN state
+    * @dev Must be in Open state
     * @param _prevAmountTraded The total amount traded to the payee in the
     * payment channel
     */
@@ -80,7 +91,7 @@ contract Escrow {
         bytes memory _pSig
     )
         public
-        inState(EscrowState.OPEN)
+        inState(EscrowState.Open)
     {
         bytes32 sighash = keccak256(abi.encodePacked(
             address(this),
@@ -93,12 +104,12 @@ contract Escrow {
 
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
-        closeEscrow(EscrowCloseReason.CASHOUT, sighash);
+        closeEscrow(EscrowCloseReason.Cashout, sighash);
     }
 
     /** Allows the escrower to refund the escrow after the `escrowTimelock` has been reached
     * @dev Must be signed by the escrower refund key
-    * @dev Must be in OPEN state
+    * @dev Must be in Open state
     * @param _prevAmountTraded The total amount traded to the payee in the
     * payment channel
     */
@@ -107,7 +118,7 @@ contract Escrow {
         bytes memory _eSig
     )
         public
-        inState(EscrowState.OPEN)
+        inState(EscrowState.Open)
         afterTimelock(escrowTimelock)
     {
         bytes32 sighash = keccak256(abi.encodePacked(
@@ -120,12 +131,12 @@ contract Escrow {
 
         sendToPayee(_prevAmountTraded);
         sendRemainingToEscrower();
-        closeEscrow(EscrowCloseReason.REFUND, sighash);
+        closeEscrow(EscrowCloseReason.Refund, sighash);
     }
 
     /** Post a hash puzzle unlocks lastest trade in the escrow
     * @dev Must be signed by both the escrower and payee trade keys
-    * @dev Must be in OPEN state
+    * @dev Must be in Open state
     * @param _prevAmountTraded The total amount traded to the payee in the
     * payment channel before the last trade
     * @param _tradeAmount The current trade amount
@@ -143,7 +154,7 @@ contract Escrow {
         bytes memory pSig
     )
         public
-        inState(EscrowState.OPEN)
+        inState(EscrowState.Open)
     {
         bytes32 sighash = keccak256(abi.encodePacked(
             address(this),
@@ -161,7 +172,7 @@ contract Escrow {
         puzzleTimelock = _puzzleTimelock;
         puzzleSighash = sighash;
 
-        escrowState = EscrowState.PUZZLE_POSTED;
+        escrowState = EscrowState.PuzzlePosted;
         emit PuzzlePosted(puzzle);
 
         // Return the previously traded funds
@@ -171,32 +182,32 @@ contract Escrow {
 
     /**
     * Payee solves the hash puzzle redeeming the last trade amount of funds in the escrow
-    * @dev Must be in PUZZLE_POSTED state
+    * @dev Must be in PuzzlePosted state
     * @param _preimage The preimage x such that H(x) == puzzle
     */
     function solvePuzzle(bytes32 _preimage)
         public
-        inState(EscrowState.PUZZLE_POSTED)
+        inState(EscrowState.PuzzlePosted)
     {
         bytes32 h = keccak256(abi.encodePacked(_preimage));
         require(h == puzzle, "Invalid preimage");
 
         emit Preimage(_preimage);
         sendRemainingToPayee();
-        closeEscrow(EscrowCloseReason.PUZZLE_SOLVE, puzzleSighash);
+        closeEscrow(EscrowCloseReason.PuzzleSolve, puzzleSighash);
     }
 
     /**
     * Escrower refunds the last trade amount after `puzzleTimelock` has been reached
-    * @dev Must be in PUZZLE_POSTED state
+    * @dev Must be in PuzzlePosted state
     */
     function refundPuzzle()
         public
-        inState(EscrowState.PUZZLE_POSTED)
+        inState(EscrowState.PuzzlePosted)
         afterTimelock(puzzleTimelock)
     {
         sendRemainingToEscrower();
-        closeEscrow(EscrowCloseReason.PUZZLE_REFUND, puzzleSighash);
+        closeEscrow(EscrowCloseReason.PuzzleRefund, puzzleSighash);
     }
 
     /** Verify a EC signature (v,r,s) on a message digest h
@@ -226,7 +237,7 @@ contract Escrow {
 /**
 * @title CWC Escrow Contract backed by ETH
 * @dev Implementation of a CWC unidirectional escrow payment channel using ETH directly
-* @dev Escrow starts in the OPEN state because it is funded in the constructor
+* @dev Escrow starts in the Open state because it is funded in the constructor
 * by sending `escrowAmount` of ETH with the transaction
 */
 contract EthEscrow is Escrow {
@@ -258,17 +269,17 @@ contract EthEscrow is Escrow {
     {
     }
 
-    function () external payable inState(EscrowState.UNFUNDED) {
+    function () external payable inState(EscrowState.Unfunded) {
         emit EscrowFunded(address(this).balance);
     }
 
-    function openEscrow() public inState(EscrowState.UNFUNDED) {
+    function openEscrow() public inState(EscrowState.Unfunded) {
         require(address(this).balance >= escrowAmount, "Escrow not funded");
 
         if(address(this).balance > escrowAmount) {
             escrowReserve.send(address(this).balance - escrowAmount);
         }
-        escrowState = EscrowState.OPEN;
+        escrowState = EscrowState.Open;
         emit EscrowOpened();
     }
 
@@ -304,7 +315,7 @@ contract EthEscrow is Escrow {
 /**
 * @title CWC Escrow Contract backed by a ERC20 token
 * @dev Implementation of a CWC unidirectional escrow payment channel using an arbitrary ERC20 token
-* @dev Escrow starts in the UNFUNDED state and only moves to OPEN once the
+* @dev Escrow starts in the Unfunded state and only moves to Open once the
 * `fundEscrow` function is called which also transfers `escrowAmount` of tokens
 * into this contract from a target address that has approved the transfer
 */
@@ -336,8 +347,8 @@ contract Erc20Escrow is Escrow {
     {
         // Validate the token address implements the ERC 20 standard
         token = ERC20(_tknAddr);
-        // Start in UNFUNDED state until the fundEscrow function is called
-        escrowState = EscrowState.UNFUNDED; // Start in an unfunded state
+        // Start in Unfunded state until the fundEscrow function is called
+        escrowState = EscrowState.Unfunded; // Start in an unfunded state
     }
 
     /**
@@ -347,9 +358,9 @@ contract Erc20Escrow is Escrow {
     * contract
     * @param _from The address to transfer the tokens from
     */
-    function fundEscrow(address payable _from) public inState(EscrowState.UNFUNDED) {
+    function fundEscrow(address payable _from) public inState(EscrowState.Unfunded) {
         require(token.transferFrom(_from, address(this), escrowAmount), "Token Transfer failed");
-        escrowState = EscrowState.OPEN;
+        escrowState = EscrowState.Open;
         emit EscrowOpened();
     }
 

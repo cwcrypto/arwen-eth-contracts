@@ -100,7 +100,7 @@ contract('EthEscrow', async (accounts) => {
         assert.equal((await escrow.escrowTimelock()).toNumber(), escrowTimelock);
         assert.equal((await escrow.escrowerBalance()).toString(), "0");
         assert.equal((await escrow.payeeBalance()).toString(), "0");
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.OPEN);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.Open);
     });
 
     it("Test cashout escrow", async () => {
@@ -149,7 +149,7 @@ contract('EthEscrow', async (accounts) => {
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PuzzlePosted);
 
         // Refunding the puzzle should fail because we have not yet hit the timelock
         try {
@@ -183,7 +183,7 @@ contract('EthEscrow', async (accounts) => {
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PuzzlePosted);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
         var txResult = await escrow.refundPuzzle();

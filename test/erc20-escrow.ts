@@ -49,7 +49,7 @@ contract('Erc20Escrow', async (accounts) => {
         gasMeter.TrackGasUsage("fundEscrow", txResult.receipt);
 
         assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.OPEN);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.Open);
         return escrow;
     }
 
@@ -100,7 +100,7 @@ contract('Erc20Escrow', async (accounts) => {
 
         assert.equal((await testToken.balanceOf(escrow.address)).toString(), escrowAmount.toString());
         assert.equal((await escrow.escrowTimelock()).toNumber(), escrowTimelock);
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.OPEN);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.Open);
     });
 
     it("Test cashout escrow", async () => {
@@ -151,7 +151,7 @@ contract('Erc20Escrow', async (accounts) => {
         // State assertions after puzzle has been posted
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
         assert.isTrue(new BigNumber(200).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)));
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PuzzlePosted);
 
         // Refunding the puzzle should fail because we have not yet hit the timelock
         try {
@@ -186,7 +186,7 @@ contract('Erc20Escrow', async (accounts) => {
         // State assertions after puzzle has been posted
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
         assert.isTrue(new BigNumber(200).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)));
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PUZZLE_POSTED);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PuzzlePosted);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
         var txResult = await escrow.refundPuzzle();

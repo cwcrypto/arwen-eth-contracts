@@ -12,6 +12,15 @@ import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 */
 contract Escrow {
 
+    string public constant SIGNATURE_PREFIX = '\x19Ethereum Signed Message:\n';
+
+    enum MessageTypeId {
+        None,
+        Cashout,
+        Puzzle,
+        Refund
+    }
+
     enum EscrowState {
         Unfunded,
         Open,
@@ -93,8 +102,13 @@ contract Escrow {
         public
         inState(EscrowState.Open)
     {
+        // Length of the actual message: 20 + 1 + 32
+        string memory messageLength = '53';
         bytes32 sighash = keccak256(abi.encodePacked(
+            SIGNATURE_PREFIX,
+            messageLength,
             address(this),
+            uint8(MessageTypeId.Cashout),
             _prevAmountTraded
         ));
 
@@ -121,8 +135,13 @@ contract Escrow {
         inState(EscrowState.Open)
         afterTimelock(escrowTimelock)
     {
+        // Length of the actual message: 20 + 1 + 32
+        string memory messageLength = '53';
         bytes32 sighash = keccak256(abi.encodePacked(
+            SIGNATURE_PREFIX,
+            messageLength,
             address(this),
+            uint8(MessageTypeId.Refund),
             _prevAmountTraded
         ));
 
@@ -156,8 +175,13 @@ contract Escrow {
         public
         inState(EscrowState.Open)
     {
+        // Length of the actual message: 20 + 1 + 32 + 32 + 32 + 32
+        string memory messageLength = '149';
         bytes32 sighash = keccak256(abi.encodePacked(
+            SIGNATURE_PREFIX,
+            messageLength,
             address(this),
+            uint8(MessageTypeId.Puzzle),
             _prevAmountTraded,
             _tradeAmount,
             _puzzle,
@@ -214,9 +238,8 @@ contract Escrow {
     * Uses EIP-191 for ethereum signed messages
     * @return retAddr The recovered address from the signature or 0 if signature is invalid
     */
-    function verify( bytes32 _h, bytes memory sig) internal pure returns(address retAddr) {
-        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _h));
-        retAddr = ECDSA.recover(prefixedHash, sig);
+    function verify( bytes32 _sighash, bytes memory sig) internal pure returns(address retAddr) {
+        retAddr = ECDSA.recover(_sighash, sig);
     }
 
     /**

@@ -1,10 +1,17 @@
 pragma solidity ^0.5.0;
 
 import "./Escrow.sol";
+import "./EscrowLibrary.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
+
 contract EscrowFactory is Ownable {
-    constructor () public {}
+
+    EscrowLibrary public escrowLibrary;
+
+    constructor () public {
+        escrowLibrary = new EscrowLibrary();
+    }
 
     event EscrowCreated(
         bytes32 indexed escrowParams,
@@ -23,6 +30,7 @@ contract EscrowFactory is Ownable {
     public
     {
         EthEscrow escrow = new EthEscrow(
+            address(escrowLibrary),
             _escrowAmount,
             _timelock,
             _escrowReserve,
@@ -59,6 +67,7 @@ contract EscrowFactory is Ownable {
     public
     {
         Erc20Escrow escrow = new Erc20Escrow(
+            address(escrowLibrary),
             _tknAddr,
             _escrowAmount,
             _timelock,

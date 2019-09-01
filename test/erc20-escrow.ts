@@ -4,10 +4,11 @@ const web3 = new Web3('http://localhost:9545');
 
 // Import truffle contract abstractions
 const EscrowFactory = artifacts.require("EscrowFactory");
+const EscrowLibrary = artifacts.require("EscrowLibrary");
 const Erc20Escrow = artifacts.require("Erc20Escrow");
 const TestToken = artifacts.require("TestToken");
 
-import { Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts';
+import { EscrowFactoryInstance, EscrowLibraryInstance, Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
 import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState } from './common';
@@ -17,6 +18,14 @@ contract('Erc20Escrow', async (accounts) => {
     var testToken: TestTokenInstance;
     var TSS: TestSigningService;
     var gasMeter: GasMeter;
+
+    var escrowFactory: EscrowFactoryInstance;
+    var escrowLibrary: EscrowLibraryInstance;
+
+    before(async () => {
+        escrowFactory = await EscrowFactory.deployed();
+        escrowLibrary = await EscrowLibrary.at(await escrowFactory.escrowLibrary());
+    });
 
     beforeEach(async () => {
         // generate fresh accounts to use for every test
@@ -38,14 +47,13 @@ contract('Erc20Escrow', async (accounts) => {
      * @param escrowTimelcok The refund timelock of this escrow
      */
     async function setupERC20Escrow(escrowAmount: number, escrowTimelock: number) : Promise<Erc20EscrowInstance> {
-        // var escrow = await deployERC20Escrow(testToken.address, escrowAmount, escrowTimelock);
         var escrow = await deployERC20EscrowFromFactory(testToken.address, escrowAmount, escrowTimelock);
 
         // Approve escrow contract to transfer the tokens on behalf of mainAccount
         var txResult = await testToken.approve(escrow.address, escrowAmount, {from: mainAccount});
         gasMeter.TrackGasUsage("ERC20 token approve", txResult.receipt);
 
-        txResult = await escrow.fundEscrow(mainAccount);
+        txResult = await escrowLibrary.openERC20Escrow(escrow.address, mainAccount);
         gasMeter.TrackGasUsage("fundEscrow", txResult.receipt);
 
         assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
@@ -53,23 +61,7 @@ contract('Erc20Escrow', async (accounts) => {
         return escrow;
     }
 
-    async function deployERC20Escrow(tknAddr: string, escrowAmount: number, escrowTimelock: number): Promise<Erc20EscrowInstance> {
-        var escrow = await Erc20Escrow.new(
-            tknAddr,
-            escrowAmount,
-            escrowTimelock,
-            TSS.eReserve.address, TSS.eTrade.address, TSS.eRefund.address,
-            TSS.pReserve.address, TSS.pTrade.address,
-            { from: mainAccount }
-        );
-
-        let receipt = await web3.eth.getTransactionReceipt(escrow.transactionHash);
-        gasMeter.TrackGasUsage("ERC20Escrow constructor", receipt);
-        return escrow;
-    }
-
     async function deployERC20EscrowFromFactory(tknAddr: string, escrowAmount: number, escrowTimelock: number) : Promise<Erc20EscrowInstance> {
-        var escrowFactory = await EscrowFactory.deployed();
         var txResult = await escrowFactory.createErc20Escrow(
             tknAddr,
             escrowAmount,
@@ -104,9 +96,9 @@ contract('Erc20Escrow', async (accounts) => {
     });
 
     it("Test cashout escrow", async () => {
-        var erc20Escrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
-        var { eSig, pSig } = TSS.signCashout(erc20Escrow.address, 400);
-        var txResult = await erc20Escrow.cashout(400, eSig.signature, pSig.signature);
+        var escrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
+        var { eSig, pSig } = TSS.signCashout(escrow.address, 400);
+        var txResult = await escrowLibrary.cashout(escrow.address, 400, eSig.signature, pSig.signature);
         gasMeter.TrackGasUsage("cashout", txResult.receipt);
 
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
@@ -114,10 +106,10 @@ contract('Erc20Escrow', async (accounts) => {
     });
 
     it("Test refund escrow before expiry", async () => {
-        var escrowNotExpired = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch() + 24 * 60 * 60 );
-        var eSig = TSS.signEscrowRefund(escrowNotExpired.address, 400);
+        var escrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch() + 24 * 60 * 60 );
+        var eSig = TSS.signEscrowRefund(escrow.address, 400);
         try {
-            await escrowNotExpired.refund(400, eSig.signature);
+            await escrowLibrary.refund(escrow.address, 400, eSig.signature);
             fail("Refunding escrow before it has expired should fail");
         } catch(err) {
             assert.match(err, new RegExp("Timelock not reached"));
@@ -125,9 +117,9 @@ contract('Erc20Escrow', async (accounts) => {
     });
 
     it("Test refund expired escrow", async () => {
-        var expiredEscrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
-        var eSig = TSS.signEscrowRefund(expiredEscrow.address, 400);
-        var txResult = await expiredEscrow.refund(400, eSig.signature);
+        var escrow = await setupERC20Escrow(1000, getCurrentTimeUnixEpoch());
+        var eSig = TSS.signEscrowRefund(escrow.address, 400);
+        var txResult = await escrowLibrary.refund(escrow.address, 400, eSig.signature);
         gasMeter.TrackGasUsage("refund", txResult.receipt);
 
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));
@@ -142,7 +134,7 @@ contract('Erc20Escrow', async (accounts) => {
         var puzzleTimelock = getCurrentTimeUnixEpoch() + 24 * 60 * 60 ; // set puzzle timelock 1 day from now
         var { eSig, pSig } = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
 
-        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, 
+        var txResult = await escrowLibrary.postPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock, 
             eSig.signature,
             pSig.signature
         );
@@ -155,14 +147,14 @@ contract('Erc20Escrow', async (accounts) => {
 
         // Refunding the puzzle should fail because we have not yet hit the timelock
         try {
-            await escrow.refundPuzzle();
+            await escrowLibrary.refundPuzzle(escrow.address);
             fail("Refunding puzzle before it has expired should fail");
         } catch(err) {
-            assert.match(err, new RegExp("Timelock not reached"));
+            assert.match(err, new RegExp("Puzzle timelock not reached"));
         }
 
         // Solving the puzzle with the correct preimage should succeed and release the tradeAmount to the payee 
-        var txResult = await escrow.solvePuzzle(preimage);
+        var txResult = await escrowLibrary.solvePuzzle(escrow.address, preimage);
         gasMeter.TrackGasUsage("solvePuzzle", txResult.receipt);
 
         assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)));
@@ -177,7 +169,7 @@ contract('Erc20Escrow', async (accounts) => {
 
        var { eSig, pSig } = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
         
-        var txResult = await escrow.postPuzzle(200, 200, puzzle, puzzleTimelock, 
+        var txResult = await escrowLibrary.postPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock, 
             eSig.signature,
             pSig.signature
         );
@@ -189,7 +181,7 @@ contract('Erc20Escrow', async (accounts) => {
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.PuzzlePosted);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
-        var txResult = await escrow.refundPuzzle();
+        var txResult = await escrowLibrary.refundPuzzle(escrow.address);
         gasMeter.TrackGasUsage("refundPuzzle", txResult.receipt);
 
         assert.isTrue(new BigNumber(800).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)));

@@ -1,10 +1,17 @@
 pragma solidity ^0.5.0;
 
 import "./Escrow.sol";
+import "./EscrowLibrary.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
+
 contract EscrowFactory is Ownable {
-    constructor () public {}
+
+    EscrowLibrary public escrowLibrary;
+
+    constructor () public {
+        escrowLibrary = new EscrowLibrary();
+    }
 
     event EscrowCreated(
         bytes32 indexed escrowParams,
@@ -12,74 +19,84 @@ contract EscrowFactory is Ownable {
     );
 
     function createEthEscrow(
-        uint _escrowAmount,
-        uint _timelock,
-        address payable _escrowReserve,
-        address _escrowTrade,
-        address _escrowRefund,
-        address payable _payeeReserve,
-        address _payeeTrade
+        uint escrowAmount,
+        uint timelock,
+        address payable escrowReserve,
+        address escrowTrade,
+        address escrowRefund,
+        address payable payeeReserve,
+        address payeeTrade
     )
     public
     {
-        EthEscrow escrow = new EthEscrow(
-            _escrowAmount,
-            _timelock,
-            _escrowReserve,
-            _escrowTrade,
-            _escrowRefund,
-            _payeeReserve,
-            _payeeTrade
-        );
-
         bytes32 escrowParamsHash = keccak256(abi.encodePacked(
             address(this),
-            _escrowAmount,
-            _timelock,
-            _escrowReserve,
-            _escrowTrade,
-            _escrowRefund,
-            _payeeReserve,
-            _payeeTrade
+            escrowAmount,
+            timelock,
+            escrowReserve,
+            escrowTrade,
+            escrowRefund,
+            payeeReserve,
+            payeeTrade
         ));
+
+        EthEscrow escrow = new EthEscrow(
+            address(escrowLibrary)
+        );
+
+        escrowLibrary.newEscrow(
+            address(escrow),
+            escrowAmount,
+            timelock,
+            escrowReserve,
+            escrowTrade,
+            escrowRefund,
+            payeeReserve,
+            payeeTrade
+        );
 
         emit EscrowCreated(escrowParamsHash, address(escrow));
     }
 
     function createErc20Escrow(
-        address _tknAddr,
-        uint _escrowAmount,
-        uint _timelock,
-        address payable _escrowReserve,
-        address _escrowTrade,
-        address _escrowRefund,
-        address payable _payeeReserve,
-        address _payeeTrade
+        address tknAddr,
+        uint escrowAmount,
+        uint timelock,
+        address payable escrowReserve,
+        address escrowTrade,
+        address escrowRefund,
+        address payable payeeReserve,
+        address payeeTrade
     )
     public
     {
-        Erc20Escrow escrow = new Erc20Escrow(
-            _tknAddr,
-            _escrowAmount,
-            _timelock,
-            _escrowReserve,
-            _escrowTrade,
-            _escrowRefund,
-            _payeeReserve,
-            _payeeTrade
-        );
-
         bytes32 escrowParamsHash = keccak256(abi.encodePacked(
             address(this),
-            _tknAddr,
-            _escrowAmount,
-            _timelock,
-            _escrowReserve,
-            _escrowTrade,
-            _escrowRefund,
-            _payeeReserve,
-            _payeeTrade
+            tknAddr,
+            escrowAmount,
+            timelock,
+            escrowReserve,
+            escrowTrade,
+            escrowRefund,
+            payeeReserve,
+            payeeTrade
         ));
+
+        Erc20Escrow escrow = new Erc20Escrow(
+            address(escrowLibrary),
+            tknAddr
+        );
+
+        escrowLibrary.newEscrow(
+            address(escrow),
+            escrowAmount,
+            timelock,
+            escrowReserve,
+            escrowTrade,
+            escrowRefund,
+            payeeReserve,
+            payeeTrade
+        );
 
         emit EscrowCreated(escrowParamsHash, address(escrow));
     }

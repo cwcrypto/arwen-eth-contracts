@@ -1,15 +1,14 @@
-import { Account, Sign } from "web3-eth-accounts";
-import { TransactionReceipt } from "web3-core";
-import Web3 from "web3";
+import { Account, MessageSignature } from "web3/eth/accounts";
+import { TransactionReceipt } from "web3/types";
 
 import * as encodeUtils from "./web3js-includes/Encodepacked";
 
 // For up-to-date gas prices see: https://ethgasstation.info/
 const GAS_PRICE_GWEI = 2;
-const ETH_USD_Price = 170;
+const ETH_USD_PRICE = 170;
 
 console.log(`Using gas price of ${GAS_PRICE_GWEI} GWEI`);
-console.log(`Using ETH price of ${ETH_USD_Price} USD`);
+console.log(`Using ETH price of ${ETH_USD_PRICE} USD`);
 
 /**
  * Escrow state enum matching the Escrow.sol internal state machine
@@ -40,7 +39,7 @@ export function getCurrentTimeUnixEpoch() {
     return Math.floor(new Date().valueOf() / 1000)
 }
 
-interface DuoSigned { eSig: Sign, pSig: Sign };
+interface DuoSigned { eSig: MessageSignature, pSig: MessageSignature };
 
 export class TestSigningService {
 
@@ -78,7 +77,7 @@ export class TestSigningService {
         };
     }
 
-    signEscrowRefund(addr: string, amountTraded: number): Sign {
+    signEscrowRefund(addr: string, amountTraded: number): MessageSignature {
         var message = encodeUtils.encodePacked(
             {t: "address", v: addr},
             {t: "uint8", v: MessageTypeId.Refund },
@@ -127,8 +126,9 @@ export class GasMeter {
 
     printGasCost(gasUsed: number) {
         let gasPrice = web3.utils.toWei(web3.utils.toBN(GAS_PRICE_GWEI), "gwei");
-        let ethPrice = web3.utils.fromWei(gasPrice.mul(web3.utils.toBN(gasUsed)), "ether");
-        let usdPrice = ethPrice * ETH_USD_Price;
+        let weiPrice = gasPrice.mul(web3.utils.toBN(gasUsed));
+        let ethPrice = web3.utils.fromWei(weiPrice, "ether");
+        let usdPrice = web3.utils.fromWei(weiPrice.mul(web3.utils.toBN(ETH_USD_PRICE)), "ether");
         return `gas used ${gasUsed}, ${ethPrice} ETH, ${usdPrice} USD`;
     }
 };

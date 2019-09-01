@@ -19,7 +19,9 @@ contract('Escrow Factory', async (accounts) => {
     });
 
     it("Deploy a new contract factory", async() => {
-        var factory = await EscrowFactory.new();
+
+        // Override gas since deploying factory takes more than default gas limit and block limit
+        var factory = await EscrowFactory.new({ gas: 8000000 });
 
         var txReceipt = await web3.eth.getTransactionReceipt(factory.transactionHash);
         gasMeter.TrackGasUsage("Create new factory", txReceipt);

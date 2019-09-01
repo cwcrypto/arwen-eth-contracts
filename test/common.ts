@@ -4,6 +4,13 @@ import Web3 from "web3";
 
 import * as encodeUtils from "./web3js-includes/Encodepacked";
 
+// For up-to-date gas prices see: https://ethgasstation.info/
+const GAS_PRICE_GWEI = 2;
+const ETH_USD_Price = 170;
+
+console.log(`Using gas price of ${GAS_PRICE_GWEI} GWEI`);
+console.log(`Using ETH price of ${ETH_USD_Price} USD`);
+
 /**
  * Escrow state enum matching the Escrow.sol internal state machine
  */
@@ -119,11 +126,8 @@ export class GasMeter {
     }
 
     printGasCost(gasUsed: number) {
-        // For up-to-date gas prices see: https://ethgasstation.info/
-        const GAS_PRICE = web3.utils.toBN(2 * 1000 * 1000 * 1000); // 2 Gwei
-        const ETH_USD_Price = 260;
-
-        let ethPrice = web3.utils.fromWei(GAS_PRICE.mul(web3.utils.toBN(gasUsed)), "ether");
+        let gasPrice = web3.utils.toWei(web3.utils.toBN(GAS_PRICE_GWEI), "gwei");
+        let ethPrice = web3.utils.fromWei(gasPrice.mul(web3.utils.toBN(gasUsed)), "ether");
         let usdPrice = ethPrice * ETH_USD_Price;
         return `gas used ${gasUsed}, ${ethPrice} ETH, ${usdPrice} USD`;
     }

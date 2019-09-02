@@ -14,17 +14,9 @@ import "./EscrowCommon.sol";
 */
 contract Escrow is EscrowCommon {
 
-    // Immutable state (only set once in constructor)
     address public escrowLibrary;
     address payable public escrowReserve;
-    address public escrowTrade;
-    address public escrowRefund;
-
     address payable public payeeReserve;
-    address public payeeTrade;
-
-    uint public escrowAmount;
-    uint public escrowTimelock;
 
     // Mutable state
     EscrowState public escrowState;
@@ -40,28 +32,18 @@ contract Escrow is EscrowCommon {
 
     constructor(
         address _escrowLibrary,
-        uint _escrowAmt,
-        uint _timelock,
         address payable _escrowReserve,
-        address _escrowTrade,
-        address _escrowRefund,
-        address payable _payeeReserve,
-        address _payeeTrade
+        address payable _payeeReserve
     )
         internal
     {
         escrowLibrary = _escrowLibrary;
-        escrowAmount = _escrowAmt;
-        escrowTimelock = _timelock;
         escrowReserve = _escrowReserve;
-        escrowTrade = _escrowTrade;
-        escrowRefund = _escrowRefund;
         payeeReserve = _payeeReserve;
-        payeeTrade = _payeeTrade;
     }
 
-    function setState(EscrowState _state) public onlyLibrary {
-        escrowState = _state;
+    function setState(EscrowState state) public onlyLibrary {
+        escrowState = state;
     }
 
     /**
@@ -91,25 +73,14 @@ contract EthEscrow is Escrow {
     uint public payeeBalance;
 
     constructor(
-        address _escrowLibrary,
-        uint _escrowAmt,
-        uint _timelock,
-        address payable _escrowReserve,
-        address _escrowTrade,
-        address _escrowRefund,
-        address payable _payeeReserve,
-        address _payeeTrade
-    )
-    public
+        address escrowLibrary,
+        address payable escrowReserve,
+        address payable payeeReserve
+    ) public
     Escrow(
-        _escrowLibrary,
-        _escrowAmt,
-        _timelock,
-        _escrowReserve,
-        _escrowTrade,
-        _escrowRefund,
-        _payeeReserve,
-        _payeeTrade
+        escrowLibrary,
+        escrowReserve,
+        payeeReserve
     )
     {
     }
@@ -157,37 +128,25 @@ contract Erc20Escrow is Escrow {
     ERC20 public token;
 
     constructor(
-        address _escrowLibrary,
-        address _tknAddr,
-        uint _tknAmt,
-        uint _timelock,
-        address payable _escrowReserve,
-        address _escrowTrade,
-        address _escrowRefund,
-        address payable _payeeReserve,
-        address _payeeTrade
-    )
-        public
-        payable
+        address escrowLibrary,
+        address tknAddr,
+        address payable escrowReserve,
+        address payable payeeReserve
+    ) public
     Escrow(
-        _escrowLibrary,
-        _tknAmt,
-        _timelock,
-        _escrowReserve,
-        _escrowTrade,
-        _escrowRefund,
-        _payeeReserve,
-        _payeeTrade
+        escrowLibrary,
+        escrowReserve,
+        payeeReserve
     )
     {
         // Validate the token address implements the ERC 20 standard
-        token = ERC20(_tknAddr);
+        token = ERC20(tknAddr);
     }
 
-    function open(address from) public onlyLibrary {
-        require(token.transferFrom(from, address(this), escrowAmount), "Token Transfer failed");
+    function open(address from, uint amount) public onlyLibrary {
+        require(token.transferFrom(from, address(this), amount), "Token Transfer failed");
         setState(EscrowState.Open);
-    }    
+    }
 
     function closeEscrow() public onlyLibrary {
         // If either party is mallicious, all remaining funds are transfered to the escrower regardless of what happens

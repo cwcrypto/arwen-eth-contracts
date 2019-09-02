@@ -2,6 +2,7 @@ import { Account, MessageSignature } from "web3/eth/accounts";
 import { TransactionReceipt } from "web3/types";
 
 import * as encodeUtils from "./web3js-includes/Encodepacked";
+import BigNumber from "bignumber.js";
 
 // For up-to-date gas prices see: https://ethgasstation.info/
 const GAS_PRICE_GWEI = 2;
@@ -9,6 +10,14 @@ const ETH_USD_PRICE = 170;
 
 console.log(`Using gas price of ${GAS_PRICE_GWEI} GWEI`);
 console.log(`Using ETH price of ${ETH_USD_PRICE} USD`);
+
+export interface EscrowParams {
+    escrowAmount: BigNumber;
+    escrowTimelock: BigNumber;
+    escrowRefund: string;
+    escrowTrade: string;
+    payeeTrade: string;
+}
 
 /**
  * Escrow state enum matching the Escrow.sol internal state machine

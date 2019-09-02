@@ -10,7 +10,7 @@ const EthEscrow = artifacts.require("EthEscrow");
 import { EscrowFactoryInstance, EscrowLibraryInstance, EthEscrowInstance } from '../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
-import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState } from './common';
+import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, EscrowParams } from './common';
 
 contract('EthEscrow', async (accounts) => {
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
@@ -57,9 +57,20 @@ contract('EthEscrow', async (accounts) => {
         // Open
         var openTx = await escrowLibrary.openEthEscrow(escrow.address);
         gasMeter.TrackGasUsage("EthEscrow openEscrow", openTx.receipt);
-
-        assert.isTrue(new BigNumber(escrowAmount).isEqualTo(await escrow.escrowAmount()), "escrow amount");
+        
         return escrow;
+    }
+
+    async function getEscrowParams(escrowAddress: string): Promise<EscrowParams> {
+        return (await escrowLibrary.escrows(escrowAddress)) as any;
+        // var [escrowAmount, escrowTimelock, escrowRefund, escrowTrade, payeeTrade] = await escrowLibrary.escrows(escrowAddress);
+        // return {
+        //     escrowAmount: escrowAmount,
+        //     escrowTimelock: escrowTimelock,
+        //     escrowRefund: escrowRefund,
+        //     escrowTrade: escrowTrade,
+        //     payeeTrade: payeeTrade
+        // }
     }
 
     async function deployEthEscrowFromFactory(escrowAmount: number, escrowTimelock: number) : Promise<EthEscrowInstance> {
@@ -89,12 +100,20 @@ contract('EthEscrow', async (accounts) => {
         var escrowAmount = 1000;
         var escrowTimelock = getCurrentTimeUnixEpoch();
         var escrow = await setupEthEscrow(escrowAmount, escrowTimelock);
+        
+        var escrowParams = await getEscrowParams(escrow.address);
+        assert.equal(escrowParams.escrowAmount.toNumber(), escrowAmount);
+        assert.equal(escrowParams.escrowTimelock.toNumber(), escrowTimelock);
+        assert.equal(escrowParams.escrowRefund, TSS.eRefund.address);
+        assert.equal(escrowParams.escrowTrade, TSS.eTrade.address);
+        assert.equal(escrowParams.payeeTrade, TSS.pTrade.address);
+        assert.equal(await escrow.escrowReserve(), TSS.eReserve.address);
+        assert.equal(await escrow.escrowReserve(), TSS.eReserve.address);
+        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.Open);
 
         assert.equal(await web3.eth.getBalance(escrow.address), escrowAmount.toString());
-        assert.equal((await escrow.escrowTimelock()).toNumber(), escrowTimelock);
         assert.equal((await escrow.escrowerBalance()).toString(), "0");
         assert.equal((await escrow.payeeBalance()).toString(), "0");
-        assert.equal((await escrow.escrowState()).toNumber(), EscrowState.Open);
     });
 
     it("Test cashout escrow", async () => {
@@ -114,7 +133,7 @@ contract('EthEscrow', async (accounts) => {
             await escrowLibrary.refund(escrow.address, 400, eSig.signature);
             fail("Refunding escrow before it has expired should fail");
         } catch(err) {
-            assert.match(err, new RegExp("Timelock not reached"));
+            assert.match(err, new RegExp("Escrow timelock not reached"));
         }
     });
 

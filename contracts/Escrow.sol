@@ -47,17 +47,11 @@ contract Escrow is EscrowCommon {
     }
 
     /**
-    * @dev Transfers final balances to escrower/payee and self-destructs the escrow
-    */
-    function closeEscrow() public;
-
-    /**
     * @dev Abstract methods that must be implemented by derived classes
     */
+    function closeEscrow() public;
     function sendToEscrower(uint _amt) public;
-    function sendRemainingToEscrower() public;
     function sendToPayee(uint _amt) public;
-    function sendRemainingToPayee() public;
 }
 
 
@@ -102,16 +96,8 @@ contract EthEscrow is Escrow {
         escrowerBalance += _amt;
     }
 
-    function sendRemainingToEscrower() public onlyLibrary {
-        escrowerBalance += address(this).balance - payeeBalance - escrowerBalance;
-    }
-
     function sendToPayee(uint _amt) public onlyLibrary {
         payeeBalance += _amt;
-    }
-
-    function sendRemainingToPayee() public onlyLibrary {
-        payeeBalance += address(this).balance - payeeBalance - escrowerBalance;
     }
 }
 
@@ -157,15 +143,7 @@ contract Erc20Escrow is Escrow {
         token.transfer(escrowReserve, _amt);
     }
 
-    function sendRemainingToEscrower() public onlyLibrary {
-        token.transfer(escrowReserve, token.balanceOf(address(this)));
-    }
-
     function sendToPayee(uint _amt) public onlyLibrary {
         token.transfer(payeeReserve, _amt);
-    }
-
-    function sendRemainingToPayee() public onlyLibrary {
-        token.transfer(payeeReserve, token.balanceOf(address(this)));
     }
 }

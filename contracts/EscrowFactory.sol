@@ -52,7 +52,8 @@ contract EscrowFactory is Ownable {
             timelock,
             escrowTrade,
             escrowRefund,
-            payeeTrade
+            payeeTrade,
+            false
         );
 
         emit EscrowCreated(escrowParamsHash, address(escrow));
@@ -95,7 +96,8 @@ contract EscrowFactory is Ownable {
             timelock,
             escrowTrade,
             escrowRefund,
-            payeeTrade
+            payeeTrade,
+            true
         );
 
         emit EscrowCreated(escrowParamsHash, address(escrow));

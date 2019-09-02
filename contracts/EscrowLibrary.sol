@@ -40,6 +40,7 @@ contract EscrowLibrary is EscrowCommon {
         address escrowTrade;
         address escrowRefund;
         address payeeTrade;
+        bool isErc20;
     }
 
     struct PuzzleParams {
@@ -61,6 +62,28 @@ contract EscrowLibrary is EscrowCommon {
         _;
     }
 
+    function sendRemainingToEscrower(address payable escrowAddress, EscrowParams memory escrowParams) internal {
+        if(escrowParams.isErc20) {
+            Erc20Escrow erc20Escrow = Erc20Escrow(escrowAddress);
+            erc20Escrow.sendToEscrower(erc20Escrow.token().balanceOf(escrowAddress));
+        } else {
+            EthEscrow ethEscrow = EthEscrow(escrowAddress);
+            ethEscrow.sendToEscrower(
+                address(escrowAddress).balance - ethEscrow.payeeBalance() - ethEscrow.escrowerBalance()
+            );
+        }
+    }
+
+    function sendRemainingToPayee(address payable escrowAddress, EscrowParams memory escrowParams) internal {
+         if(escrowParams.isErc20) {
+            Erc20Escrow erc20Escrow = Erc20Escrow(escrowAddress);
+            erc20Escrow.sendToPayee(erc20Escrow.token().balanceOf(escrowAddress));
+        } else {
+            EthEscrow ethEscrow = EthEscrow(escrowAddress);
+            ethEscrow.sendToPayee(escrowAddress.balance - ethEscrow.payeeBalance() - ethEscrow.escrowerBalance());
+        }
+    }
+
     function checkFunded(EthEscrow escrow) public {
         emit EscrowFunded(address(escrow), address(escrow).balance);
     }
@@ -71,7 +94,8 @@ contract EscrowLibrary is EscrowCommon {
         uint timelock,
         address escrowTrade,
         address escrowRefund,
-        address payeeTrade
+        address payeeTrade,
+        bool isErc20
     )
         public
         onlyFactory
@@ -81,7 +105,8 @@ contract EscrowLibrary is EscrowCommon {
             timelock,
             escrowTrade,
             escrowRefund,
-            payeeTrade
+            payeeTrade,
+            isErc20 = isErc20
         );
     }
 
@@ -135,14 +160,15 @@ contract EscrowLibrary is EscrowCommon {
     * payment channel
     */
     function cashout(
-        Escrow escrow,
+        address payable escrowAddress,
         uint prevAmountTraded,
         bytes memory eSig,
         bytes memory pSig
     )
         public
-        inState(escrow.escrowState(), EscrowState.Open)
+        inState(Escrow(escrowAddress).escrowState(), EscrowState.Open)
     {
+        Escrow escrow = Escrow(escrowAddress);
         EscrowParams memory escrowParams = escrows[address(escrow)];
 
         // Length of the actual message: 20 + 1 + 32
@@ -160,7 +186,7 @@ contract EscrowLibrary is EscrowCommon {
         require(verify(sighash, pSig) == escrowParams.payeeTrade, "Invalid payee cashout sig");
 
         escrow.sendToPayee(prevAmountTraded);
-        escrow.sendRemainingToEscrower();
+        sendRemainingToEscrower(escrowAddress, escrowParams);
 
         emit EscrowClosed(address(escrow), EscrowCloseReason.Refund, sighash);
         escrow.closeEscrow();
@@ -173,13 +199,14 @@ contract EscrowLibrary is EscrowCommon {
     * payment channel
     */
     function refund(
-        Escrow escrow,
+        address payable escrowAddress,
         uint prevAmountTraded,
         bytes memory eSig
     )
         public
-        inState(escrow.escrowState(), EscrowState.Open)
+        inState(Escrow(escrowAddress).escrowState(), EscrowState.Open)
     {
+        Escrow escrow = Escrow(escrowAddress);
         EscrowParams memory escrowParams = escrows[address(escrow)];
 
         require(now >= escrowParams.escrowTimelock, "Escrow timelock not reached");
@@ -198,7 +225,7 @@ contract EscrowLibrary is EscrowCommon {
         require(verify(sighash, eSig) == escrowParams.escrowRefund, "Invalid escrower sig");
 
         escrow.sendToPayee(prevAmountTraded);
-        escrow.sendRemainingToEscrower();
+        sendRemainingToEscrower(escrowAddress, escrowParams);
 
         emit EscrowClosed(address(escrow), EscrowCloseReason.Refund, sighash);
         escrow.closeEscrow();
@@ -266,18 +293,21 @@ contract EscrowLibrary is EscrowCommon {
     * @param preimage The preimage x such that H(x) == puzzle
     */
     function solvePuzzle(
-        Escrow escrow,
+        address payable escrowAddress,
         bytes32 preimage
     )
         public
-        inState(escrow.escrowState(), EscrowState.PuzzlePosted)
+        inState(Escrow(escrowAddress).escrowState(), EscrowState.PuzzlePosted)
     {
+        Escrow escrow = Escrow(escrowAddress);
+        EscrowParams memory escrowParams = escrows[address(escrow)];
+
         PuzzleParams memory puzzleParams = postedPuzzles[address(escrow)];
         bytes32 h = keccak256(abi.encodePacked(preimage));
         require(h == puzzleParams.puzzle, "Invalid preimage");
 
         emit Preimage(address(escrow), preimage);
-        escrow.sendRemainingToPayee();
+        sendRemainingToPayee(escrowAddress, escrowParams);
 
         emit EscrowClosed(address(escrow), EscrowCloseReason.PuzzleSolve, puzzleParams.puzzleSighash);
         escrow.closeEscrow();
@@ -288,15 +318,18 @@ contract EscrowLibrary is EscrowCommon {
     * @dev Must be in PuzzlePosted state
     */
     function refundPuzzle(
-        Escrow escrow
+        address payable escrowAddress
     )
         public
-        inState(escrow.escrowState(), EscrowState.PuzzlePosted)
+        inState(Escrow(escrowAddress).escrowState(), EscrowState.PuzzlePosted)
     {
+        Escrow escrow = Escrow(escrowAddress);
+        EscrowParams memory escrowParams = escrows[address(escrow)];
+
         PuzzleParams memory puzzleParams = postedPuzzles[address(escrow)];
         require(now >= puzzleParams.puzzleTimelock, "Puzzle timelock not reached");
 
-        escrow.sendRemainingToEscrower();
+        sendRemainingToEscrower(escrowAddress, escrowParams);
 
         emit EscrowClosed(address(escrow), EscrowCloseReason.PuzzleRefund, puzzleParams.puzzleSighash);
         escrow.closeEscrow();

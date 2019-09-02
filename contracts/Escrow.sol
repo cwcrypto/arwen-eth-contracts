@@ -15,8 +15,6 @@ import "./EscrowCommon.sol";
 contract Escrow is EscrowCommon {
 
     address public escrowLibrary;
-    address payable public escrowReserve;
-    address payable public payeeReserve;
 
     // Mutable state
     EscrowState public escrowState;
@@ -30,16 +28,8 @@ contract Escrow is EscrowCommon {
         _;
     }
 
-    constructor(
-        address _escrowLibrary,
-        address payable _escrowReserve,
-        address payable _payeeReserve
-    )
-        internal
-    {
+    constructor(address _escrowLibrary) internal {
         escrowLibrary = _escrowLibrary;
-        escrowReserve = _escrowReserve;
-        payeeReserve = _payeeReserve;
     }
 
     function setState(EscrowState state) public onlyLibrary {
@@ -49,41 +39,27 @@ contract Escrow is EscrowCommon {
     /**
     * @dev Abstract methods that must be implemented by derived classes
     */
-    function closeEscrow() public;
-    function sendToEscrower(uint _amt) public;
-    function sendToPayee(uint _amt) public;
+    function closeEscrow(address payable escrowReserve, address payable payeeReserve) public;
+    function sendToEscrower(address payable escrowReserve, uint _amt) public;
+    function sendToPayee(address payable payeeReserve, uint _amt) public;
 }
 
 
 /**
 * @title CWC Escrow Contract backed by ETH
-* @dev Implementation of a CWC unidirectional escrow payment channel using ETH directly
-* @dev Escrow starts in the Open state because it is funded in the constructor
-* by sending `escrowAmount` of ETH with the transaction
 */
 contract EthEscrow is Escrow {
 
     uint public escrowerBalance;
     uint public payeeBalance;
 
-    constructor(
-        address escrowLibrary,
-        address payable escrowReserve,
-        address payable payeeReserve
-    ) public
-    Escrow(
-        escrowLibrary,
-        escrowReserve,
-        payeeReserve
-    )
-    {
-    }
+    constructor(address escrowLibrary) public Escrow(escrowLibrary) { }
 
     function () external payable inState(escrowState, EscrowState.Unfunded) {
        EscrowLibrary(escrowLibrary).checkFunded(this);
     }
 
-    function closeEscrow() public onlyLibrary {
+    function closeEscrow(address payable escrowReserve, address payable payeeReserve) public onlyLibrary {
         // Below we use send rather than transfer because we do not want to have an exception throw
         // Regardless of who is mallicious, all remianing funds will be self-destrcuted
         // the escrower
@@ -92,11 +68,11 @@ contract EthEscrow is Escrow {
         selfdestruct(escrowReserve);
     }
 
-    function sendToEscrower(uint _amt) public onlyLibrary {
+    function sendToEscrower(address payable escrowReserve, uint _amt) public onlyLibrary {
         escrowerBalance += _amt;
     }
 
-    function sendToPayee(uint _amt) public onlyLibrary {
+    function sendToPayee(address payable payeeReserve, uint _amt) public onlyLibrary {
         payeeBalance += _amt;
     }
 }
@@ -104,7 +80,6 @@ contract EthEscrow is Escrow {
 
 /**
 * @title CWC Escrow Contract backed by a ERC20 token
-* @dev Implementation of a CWC unidirectional escrow payment channel using an arbitrary ERC20 token
 * @dev Escrow starts in the Unfunded state and only moves to Open once the
 * `fundEscrow` function is called which also transfers `escrowAmount` of tokens
 * into this contract from a target address that has approved the transfer
@@ -113,18 +88,7 @@ contract Erc20Escrow is Escrow {
 
     ERC20 public token;
 
-    constructor(
-        address escrowLibrary,
-        address tknAddr,
-        address payable escrowReserve,
-        address payable payeeReserve
-    ) public
-    Escrow(
-        escrowLibrary,
-        escrowReserve,
-        payeeReserve
-    )
-    {
+    constructor(address escrowLibrary, address tknAddr) public Escrow(escrowLibrary) {
         // Validate the token address implements the ERC 20 standard
         token = ERC20(tknAddr);
     }
@@ -134,16 +98,16 @@ contract Erc20Escrow is Escrow {
         setState(EscrowState.Open);
     }
 
-    function closeEscrow() public onlyLibrary {
+    function closeEscrow(address payable escrowReserve, address payable payeeReserve) public onlyLibrary {
         // If either party is mallicious, all remaining funds are transfered to the escrower regardless of what happens
         selfdestruct(escrowReserve);
     }
 
-    function sendToEscrower(uint _amt) public onlyLibrary {
+    function sendToEscrower(address payable escrowReserve, uint _amt) public onlyLibrary {
         token.transfer(escrowReserve, _amt);
     }
 
-    function sendToPayee(uint _amt) public onlyLibrary {
+    function sendToPayee(address payable payeeReserve, uint _amt) public onlyLibrary {
         token.transfer(payeeReserve, _amt);
     }
 }

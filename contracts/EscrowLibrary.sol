@@ -37,8 +37,10 @@ contract EscrowLibrary is EscrowCommon {
     struct EscrowParams {
         uint escrowAmount;
         uint escrowTimelock;
+        address payable escrowReserve;
         address escrowTrade;
         address escrowRefund;
+        address payable payeeReserve;
         address payeeTrade;
         bool isErc20;
     }
@@ -65,10 +67,11 @@ contract EscrowLibrary is EscrowCommon {
     function sendRemainingToEscrower(address payable escrowAddress, EscrowParams memory escrowParams) internal {
         if(escrowParams.isErc20) {
             Erc20Escrow erc20Escrow = Erc20Escrow(escrowAddress);
-            erc20Escrow.sendToEscrower(erc20Escrow.token().balanceOf(escrowAddress));
+            erc20Escrow.sendToEscrower(escrowParams.escrowReserve, erc20Escrow.token().balanceOf(escrowAddress));
         } else {
             EthEscrow ethEscrow = EthEscrow(escrowAddress);
             ethEscrow.sendToEscrower(
+                escrowParams.escrowReserve,
                 address(escrowAddress).balance - ethEscrow.payeeBalance() - ethEscrow.escrowerBalance()
             );
         }
@@ -77,10 +80,13 @@ contract EscrowLibrary is EscrowCommon {
     function sendRemainingToPayee(address payable escrowAddress, EscrowParams memory escrowParams) internal {
          if(escrowParams.isErc20) {
             Erc20Escrow erc20Escrow = Erc20Escrow(escrowAddress);
-            erc20Escrow.sendToPayee(erc20Escrow.token().balanceOf(escrowAddress));
+            erc20Escrow.sendToPayee(escrowParams.payeeReserve, erc20Escrow.token().balanceOf(escrowAddress));
         } else {
             EthEscrow ethEscrow = EthEscrow(escrowAddress);
-            ethEscrow.sendToPayee(escrowAddress.balance - ethEscrow.payeeBalance() - ethEscrow.escrowerBalance());
+            ethEscrow.sendToPayee(
+                escrowParams.payeeReserve,
+                escrowAddress.balance - ethEscrow.payeeBalance() - ethEscrow.escrowerBalance()
+            );
         }
     }
 
@@ -92,8 +98,10 @@ contract EscrowLibrary is EscrowCommon {
         address escrow,
         uint escrowAmount,
         uint timelock,
+        address payable escrowReserve,
         address escrowTrade,
         address escrowRefund,
+        address payable payeeReserve,
         address payeeTrade,
         bool isErc20
     )
@@ -103,8 +111,10 @@ contract EscrowLibrary is EscrowCommon {
         escrows[address(escrow)] = EscrowParams(
             escrowAmount,
             timelock,
+            escrowReserve,
             escrowTrade,
             escrowRefund,
+            payeeReserve,
             payeeTrade,
             isErc20 = isErc20
         );
@@ -126,7 +136,7 @@ contract EscrowLibrary is EscrowCommon {
 
         require(escrowBalance >= escrowAmount, "Escrow not funded");
         if(escrowBalance > escrowAmount) {
-            escrow.sendToEscrower(escrowBalance - escrowAmount);
+            escrow.sendToEscrower(escrowParams.escrowReserve, escrowBalance - escrowAmount);
         }
 
         escrow.setState(EscrowState.Open);
@@ -185,11 +195,11 @@ contract EscrowLibrary is EscrowCommon {
         require(verify(sighash, eSig) == escrowParams.escrowTrade, "Invalid escrower cashout sig");
         require(verify(sighash, pSig) == escrowParams.payeeTrade, "Invalid payee cashout sig");
 
-        escrow.sendToPayee(prevAmountTraded);
+        escrow.sendToPayee(escrowParams.payeeReserve, prevAmountTraded);
         sendRemainingToEscrower(escrowAddress, escrowParams);
 
         emit EscrowClosed(address(escrow), EscrowCloseReason.Refund, sighash);
-        escrow.closeEscrow();
+        escrow.closeEscrow(escrowParams.escrowReserve, escrowParams.payeeReserve);
     }
 
     /** Allows the escrower to refund the escrow after the `escrowTimelock` has been reached
@@ -224,11 +234,11 @@ contract EscrowLibrary is EscrowCommon {
         // Check signature
         require(verify(sighash, eSig) == escrowParams.escrowRefund, "Invalid escrower sig");
 
-        escrow.sendToPayee(prevAmountTraded);
+        escrow.sendToPayee(escrowParams.payeeReserve, prevAmountTraded);
         sendRemainingToEscrower(escrowAddress, escrowParams);
 
         emit EscrowClosed(address(escrow), EscrowCloseReason.Refund, sighash);
-        escrow.closeEscrow();
+        escrow.closeEscrow(escrowParams.escrowReserve, escrowParams.payeeReserve);
     }
 
     /** Post a hash puzzle unlocks lastest trade in the escrow
@@ -283,8 +293,8 @@ contract EscrowLibrary is EscrowCommon {
         escrow.setState(EscrowState.PuzzlePosted);
 
         // Return the previously traded funds
-        escrow.sendToPayee(prevAmountTraded);
-        escrow.sendToEscrower(escrowParams.escrowAmount - prevAmountTraded - tradeAmount);
+        escrow.sendToPayee(escrowParams.payeeReserve, prevAmountTraded);
+        escrow.sendToEscrower(escrowParams.escrowReserve, escrowParams.escrowAmount - prevAmountTraded - tradeAmount);
     }
 
     /**
@@ -310,7 +320,7 @@ contract EscrowLibrary is EscrowCommon {
         sendRemainingToPayee(escrowAddress, escrowParams);
 
         emit EscrowClosed(address(escrow), EscrowCloseReason.PuzzleSolve, puzzleParams.puzzleSighash);
-        escrow.closeEscrow();
+        escrow.closeEscrow(escrowParams.escrowReserve, escrowParams.payeeReserve);
     }
 
     /**
@@ -332,7 +342,7 @@ contract EscrowLibrary is EscrowCommon {
         sendRemainingToEscrower(escrowAddress, escrowParams);
 
         emit EscrowClosed(address(escrow), EscrowCloseReason.PuzzleRefund, puzzleParams.puzzleSighash);
-        escrow.closeEscrow();
+        escrow.closeEscrow(escrowParams.escrowReserve, escrowParams.payeeReserve);
     }
 
     /** Verify a EC signature (v,r,s) on a message digest h

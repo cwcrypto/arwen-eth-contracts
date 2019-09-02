@@ -107,8 +107,8 @@ contract('EthEscrow', async (accounts) => {
         assert.equal(escrowParams.escrowRefund, TSS.eRefund.address);
         assert.equal(escrowParams.escrowTrade, TSS.eTrade.address);
         assert.equal(escrowParams.payeeTrade, TSS.pTrade.address);
-        assert.equal(await escrow.escrowReserve(), TSS.eReserve.address);
-        assert.equal(await escrow.escrowReserve(), TSS.eReserve.address);
+        assert.equal(escrowParams.escrowReserve, TSS.eReserve.address);
+        assert.equal(escrowParams.payeeReserve, TSS.pReserve.address);
         assert.equal((await escrow.escrowState()).toNumber(), EscrowState.Open);
 
         assert.equal(await web3.eth.getBalance(escrow.address), escrowAmount.toString());

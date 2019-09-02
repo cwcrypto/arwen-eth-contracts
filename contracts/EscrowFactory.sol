@@ -41,17 +41,17 @@ contract EscrowFactory is Ownable {
         ));
 
         EthEscrow escrow = new EthEscrow(
-            address(escrowLibrary),
-            escrowReserve,
-            payeeReserve
+            address(escrowLibrary)
         );
 
         escrowLibrary.registerEscrow(
             address(escrow),
             escrowAmount,
             timelock,
+            escrowReserve,
             escrowTrade,
             escrowRefund,
+            payeeReserve,
             payeeTrade,
             false
         );
@@ -60,7 +60,7 @@ contract EscrowFactory is Ownable {
     }
 
     function createErc20Escrow(
-        address _tknAddr,
+        address tknAddr,
         uint escrowAmount,
         uint timelock,
         address payable escrowReserve,
@@ -73,7 +73,7 @@ contract EscrowFactory is Ownable {
     {
         bytes32 escrowParamsHash = keccak256(abi.encodePacked(
             address(this),
-            _tknAddr,
+            tknAddr,
             escrowAmount,
             timelock,
             escrowReserve,
@@ -85,17 +85,17 @@ contract EscrowFactory is Ownable {
 
         Erc20Escrow escrow = new Erc20Escrow(
             address(escrowLibrary),
-            _tknAddr,
-            escrowReserve,
-            payeeReserve
+            tknAddr
         );
 
         escrowLibrary.registerEscrow(
             address(escrow),
             escrowAmount,
             timelock,
+            escrowReserve,
             escrowTrade,
             escrowRefund,
+            payeeReserve,
             payeeTrade,
             true
         );

@@ -204,4 +204,18 @@ contract('EthEscrow', async (accounts) => {
 
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "800");
     });
+
+    it("Test revert for duplicated escrow params hash", async () => {
+        var expectedError = "Returned error: VM Exception while processing transaction: revert Escrow params hash already exists -- Reason given: Escrow params hash already exists."
+        
+        var time = getCurrentTimeUnixEpoch()
+        await setupEthEscrow(1000, time);
+
+        try
+        {
+            await setupEthEscrow(1000, time);            
+        } catch (error) {
+            assert.equal(expectedError, error.message);
+        }
+    });
 });

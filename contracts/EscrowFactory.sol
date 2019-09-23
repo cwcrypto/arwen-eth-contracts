@@ -9,6 +9,8 @@ contract EscrowFactory is Ownable {
 
     EscrowLibrary public escrowLibrary;
 
+    mapping (bytes32 => bool) public escrowsCreated;
+
     constructor () public {
         escrowLibrary = new EscrowLibrary();
     }
@@ -39,6 +41,10 @@ contract EscrowFactory is Ownable {
             payeeReserve,
             payeeTrade
         ));
+
+        require(! escrowsCreated[escrowParamsHash], "Escrow params hash already exists");
+
+        escrowsCreated[escrowParamsHash] = true;
 
         EthEscrow escrow = new EthEscrow(
             address(escrowLibrary)
@@ -82,6 +88,10 @@ contract EscrowFactory is Ownable {
             payeeReserve,
             payeeTrade
         ));
+
+        require(! escrowsCreated[escrowParamsHash], "Escrow params hash already exists");
+
+        escrowsCreated[escrowParamsHash] = true;
 
         Erc20Escrow escrow = new Erc20Escrow(
             address(escrowLibrary),

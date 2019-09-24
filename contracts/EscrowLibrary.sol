@@ -30,8 +30,8 @@ contract EscrowLibrary is EscrowCommon {
     // Events
     event EscrowOpened(address indexed escrow);
     event EscrowFunded(address indexed escrow, uint amountFunded);
-    event PuzzlePosted(address indexed escrow, bytes32 puzzle);
-    event Preimage(address indexed escrow, bytes32 preimage);
+    event PuzzlePosted(address indexed escrow, bytes32 puzzleSighash);
+    event Preimage(address indexed escrow, bytes32 preimage, bytes32 puzzleSighash);
     event EscrowClosed(address indexed escrow, EscrowCloseReason reason, bytes32 sighash);
 
     struct EscrowParams {
@@ -283,7 +283,7 @@ contract EscrowLibrary is EscrowCommon {
         require(verify(sighash, pSig) == escrowParams.payeeTrade, "Invalid payee sig");
 
         // Save the puzzle parameters
-        emit PuzzlePosted(address(escrow), puzzle);
+        emit PuzzlePosted(address(escrow), sighash);
 
         postedPuzzles[address(escrow)] = PuzzleParams(
             puzzle,
@@ -316,7 +316,7 @@ contract EscrowLibrary is EscrowCommon {
         bytes32 h = keccak256(abi.encodePacked(preimage));
         require(h == puzzleParams.puzzle, "Invalid preimage");
 
-        emit Preimage(address(escrow), preimage);
+        emit Preimage(address(escrow), preimage, puzzleParams.puzzleSighash);
         sendRemainingToPayee(escrowAddress, escrowParams);
 
         emit EscrowClosed(address(escrow), EscrowCloseReason.PuzzleSolve, puzzleParams.puzzleSighash);

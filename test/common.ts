@@ -10,6 +10,8 @@ const crypto = require('crypto');
 const GAS_PRICE_GWEI = 2;
 const ETH_USD_PRICE = 170;
 
+export const FORCE_REFUND_TIMELOCK = 2 * 24 * 60 * 60;
+
 console.log(`Using gas price of ${GAS_PRICE_GWEI} GWEI`);
 console.log(`Using ETH price of ${ETH_USD_PRICE} USD`);
 

@@ -10,7 +10,7 @@ const EthEscrow = artifacts.require("EthEscrow");
 import { EscrowFactoryInstance, EscrowLibraryInstance, EthEscrowInstance } from '../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
-import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, EscrowParams, hashPreimage} from './common';
+import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK } from './common';
 
 contract('EthEscrow', async (accounts) => {
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
@@ -145,6 +145,24 @@ contract('EthEscrow', async (accounts) => {
 
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600", "final escrower reserve balance");
         assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "400", "final payee reserve balance");
+    });
+
+    it("Force refund fails before expiry", async () => {
+        var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
+
+        try {
+            await escrowLibrary.forceRefund(escrow.address);
+            fail("Force refunding escrow before it has expired should fail");
+        } catch(err) {
+            assert.match(err, new RegExp("Escrow force refund timelock not reached"));
+        }
+    });
+
+    it("Force refund an escrow after it expires", async () => {
+        var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch() - FORCE_REFUND_TIMELOCK);
+        await escrowLibrary.forceRefund(escrow.address);
+
+        assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "1000", "final escrower reserve balance");
     });
 
     it("Test postPuzzle before expiry, refundPuzzle fails, solvePuzzle works", async () => {

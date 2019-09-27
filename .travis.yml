@@ -13,7 +13,7 @@ install:
   - npm run build
   
 before_script:
-  - ganache-cli -d -p 9545 > /dev/null &
+  - ganache-cli -d -p 9545 -l 10000000000 > /dev/null &
 
 script:
   - truffle test

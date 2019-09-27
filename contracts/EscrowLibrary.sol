@@ -104,6 +104,11 @@ contract EscrowLibrary {
         public
         onlyFactory
     {
+        
+        EscrowParams storage checkEscrow = escrows[address(escrow)];
+
+        require((checkEscrow.escrowAmount == 0 && escrowAmount > 0), "Escrow already opened or escrow request is of size 0");
+
         escrows[address(escrow)] = EscrowParams(
             escrowAmount,
             timelock,

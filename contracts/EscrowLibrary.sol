@@ -165,8 +165,7 @@ contract EscrowLibrary {
         // Check signatures
         require(verify(sighash, eSig) == escrowParams.escrowTrade, "Invalid escrower cashout sig");
         require(verify(sighash, pSig) == escrowParams.payeeTrade, "Invalid payee cashout sig");
-        
-        escrowParams.escrowState = EscrowState.Closed;
+
         escrowParams.payeeBalance += prevAmountTraded;
         escrowParams.escrowerBalance += escrowParams.escrowAmount - prevAmountTraded;
         closeEscrow(escrowAddress, escrowParams);
@@ -204,7 +203,6 @@ contract EscrowLibrary {
         // Check signature
         require(verify(sighash, eSig) == escrowParams.escrowRefund, "Invalid escrower sig");
 
-        escrowParams.escrowState = EscrowState.Closed;
         escrowParams.payeeBalance += prevAmountTraded;
         escrowParams.escrowerBalance += escrowParams.escrowAmount - prevAmountTraded;
         closeEscrow(escrowAddress, escrowParams);
@@ -319,6 +317,8 @@ contract EscrowLibrary {
     }
 
     function closeEscrow(address escrowAddress, EscrowParams memory escrowParams) internal {
+        escrowParams.escrowState = EscrowState.Closed;
+
         Escrow escrow = Escrow(escrowAddress);
         escrow.send(escrowParams.payeeReserve, escrowParams.payeeBalance);
         escrow.send(escrowParams.escrowReserve, escrowParams.escrowerBalance);

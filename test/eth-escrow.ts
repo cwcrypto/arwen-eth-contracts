@@ -208,4 +208,31 @@ contract('EthEscrow', async (accounts) => {
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "800", "final escrower reserve balance");
         assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "200", "final payee reserve balance");
     });
+
+
+    it("Test revert for duplicated escrow params hash", async () => {
+        var expectedError = "Returned error: VM Exception while processing transaction: revert Escrow already opened or escrowAmount too low -- Reason given: Escrow already opened or escrowAmount too low."
+        
+        var time = getCurrentTimeUnixEpoch()
+        await setupEthEscrow(1000, time);
+
+        try
+        {
+            await setupEthEscrow(1000, time);            
+        } catch (error) {
+            assert.equal(expectedError, error.message);
+        }
+    });
+
+
+    it("Test revert for escrow of size 0", async () => {
+        var expectedError = "Returned error: VM Exception while processing transaction: revert Escrow already opened or escrowAmount too low -- Reason given: Escrow already opened or escrowAmount too low."
+        
+        try
+        {
+            await setupEthEscrow(0, getCurrentTimeUnixEpoch());            
+        } catch (error) {
+            assert.equal(expectedError, error.message);
+        }
+    });
 });

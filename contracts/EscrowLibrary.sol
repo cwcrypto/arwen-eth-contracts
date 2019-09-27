@@ -48,8 +48,8 @@ contract EscrowLibrary {
     // Events
     event EscrowOpened(address indexed escrow);
     event EscrowFunded(address indexed escrow, uint amountFunded);
-    event PuzzlePosted(address indexed escrow, bytes32 puzzle);
-    event Preimage(address indexed escrow, bytes32 preimage);
+    event PuzzlePosted(address indexed escrow, bytes32 puzzleSighash);
+    event Preimage(address indexed escrow, bytes32 preimage, bytes32 puzzleSighash);
     event EscrowClosed(address indexed escrow, EscrowCloseReason reason, bytes32 sighash);
 
     struct EscrowParams {
@@ -268,7 +268,7 @@ contract EscrowLibrary {
         escrowParams.payeeBalance += prevAmountTraded;
         escrowParams.escrowerBalance += escrowParams.escrowAmount - prevAmountTraded - tradeAmount;
 
-        emit PuzzlePosted(escrowAddress, puzzle);
+        emit PuzzlePosted(escrowAddress, sighash);
     }
 
     /**
@@ -288,7 +288,7 @@ contract EscrowLibrary {
         PuzzleParams memory puzzleParams = postedPuzzles[escrowAddress];
         bytes32 h = sha256(abi.encodePacked(preimage));
         require(h == puzzleParams.puzzle, "Invalid preimage");
-        emit Preimage(escrowAddress, preimage);
+        emit Preimage(escrowAddress, preimage, puzzleParams.puzzleSighash);
 
         escrowParams.payeeBalance += puzzleParams.tradeAmount;
         closeEscrow(escrowAddress, escrowParams);

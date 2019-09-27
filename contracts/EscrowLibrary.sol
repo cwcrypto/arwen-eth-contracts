@@ -7,6 +7,7 @@ import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 contract EscrowLibrary {
 
     string constant SIGNATURE_PREFIX = '\x19Ethereum Signed Message:\n';
+    uint constant FORCE_REFUND_TIME = 2 days;
 
     enum MessageTypeId {
         None,
@@ -17,14 +18,16 @@ contract EscrowLibrary {
 
     /**
     * @title Escrow State Machine
-    * @param Unfunded Initial state of the escrow. The escrow can only
+    * @param None Preliminary state of an escrow before it has been created.
+    * @param Unfunded Initial state of the escrow once created. The escrow can only
     * transition to the Open state once it has been funded with required escrow
     * amount and openEscrow method is called.
     * @param Open From this state the escrow can transition to Closed state
     * (self-destructed) via the cashout or refund methods or it can
     * transition to PuzzlePosted state via the postPuzzle method.
     * @param PuzzlePosted From this state the escrow can only transition to
-    * closed via the solve or puzzleRefund methods 
+    * closed via the solve or puzzleRefund methods
+    * @param Closed The final sink state of the escrow
     */
     enum EscrowState {
         None,
@@ -35,14 +38,14 @@ contract EscrowLibrary {
     }
 
     /**
-    * @dev Possible reasons the escrow can become closed (sink state of the
-    * escrow where the contract is also self-destructed)
+    * @dev Possible reasons the escrow can become closed
     */
     enum EscrowCloseReason {
         Refund,
         PuzzleRefund,
         PuzzleSolve,
-        Cashout
+        Cashout,
+        ForceRefund
     }
 
     // Events
@@ -179,19 +182,19 @@ contract EscrowLibrary {
         emit EscrowClosed(escrowAddress, EscrowCloseReason.Refund, sighash);
     }
 
-    /** Allows the escrower to refund the escrow after the `escrowTimelock` has been reached
+    /**
+    * Allows the escrower to refund the escrow after the `escrowTimelock` has
+    * been reached. This is a signed refund because it allows the refunder to
+    * specify the amount traded in the escrow. This is useful for the escrower to
+    * benevolently close the escrow with the final balances despite the other
+    * party being offline (even though the escrower could take the full escrow
+    * amount in this case).
     * @dev Must be signed by the escrower refund key
     * @dev Must be in Open state
     * @param prevAmountTraded The total amount traded to the payee in the
     * payment channel
     */
-    function refund(
-        address payable escrowAddress,
-        uint prevAmountTraded,
-        bytes memory eSig
-    )
-        public
-    {
+    function refund(address payable escrowAddress, uint prevAmountTraded, bytes memory eSig) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.Open, "Escrow must be in state Open");
         require(now >= escrowParams.escrowTimelock, "Escrow timelock not reached");
@@ -214,6 +217,22 @@ contract EscrowLibrary {
         closeEscrow(escrowAddress, escrowParams);
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.Refund, sighash);
+    }
+
+    /**
+    * @notice Force refunds escrow funds in the event the escrower's keys are
+    * lost or if the escrower remains offline for an extended period of time
+    */
+    function forceRefund(address escrowAddress) public {
+        EscrowParams storage escrowParams = escrows[escrowAddress];
+        require(escrowParams.escrowState == EscrowState.Open, "Escrow must be in state Open");
+        require(now >= escrowParams.escrowTimelock + FORCE_REFUND_TIME, "Escrow force refund timelock not reached");
+
+        escrowParams.escrowerBalance = Escrow(escrowAddress).balance();
+        closeEscrow(escrowAddress, escrowParams);
+
+        // Use 0x0 as the closing sighash because there is no signature required
+        emit EscrowClosed(escrowAddress, EscrowCloseReason.ForceRefund, 0x0);
     }
 
     /** Post a hash puzzle unlocks lastest trade in the escrow
@@ -277,12 +296,7 @@ contract EscrowLibrary {
     * @dev Must be in PuzzlePosted state
     * @param preimage The preimage x such that H(x) == puzzle
     */
-    function solvePuzzle(
-        address payable escrowAddress,
-        bytes32 preimage
-    )
-        public
-    {
+    function solvePuzzle(address payable escrowAddress, bytes32 preimage) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.PuzzlePosted, "Escrow must be in state PuzzlePosted");
 

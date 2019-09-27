@@ -107,7 +107,8 @@ contract EscrowLibrary {
         
         EscrowParams storage checkEscrow = escrows[address(escrow)];
 
-        require((checkEscrow.escrowAmount == 0 && escrowAmount > 0), "Escrow already opened or escrowAmount too low");
+        require(checkEscrow.escrowState == EscrowState.None, "Escrow already exists");
+        require(escrowAmount > 0, "Escrow amount too low");
 
         escrows[address(escrow)] = EscrowParams(
             escrowAmount,

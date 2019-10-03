@@ -88,12 +88,6 @@ contract EscrowLibrary {
         _;
     }
 
-    function checkFunded(address escrowAddress) public {
-        EscrowParams storage escrowParams = escrows[escrowAddress];
-        require(escrowParams.escrowState == EscrowState.Unfunded, "Escrow must be in state unfunded");
-        emit EscrowFunded(escrowAddress, Escrow(escrowAddress).balance());
-    }
-
     function newEscrow(
         address escrow,
         uint escrowAmount,
@@ -127,6 +121,22 @@ contract EscrowLibrary {
         );
     }
 
+    /**
+    * Emits an event with the current balance of the escrow
+    * @dev Can be used by the EthEscrow contract's payable fallback to
+    * automatically emit an event when an escrow is funded
+    */
+    function checkFunded(address escrowAddress) public {
+        EscrowParams storage escrowParams = escrows[escrowAddress];
+        require(escrowParams.escrowState == EscrowState.Unfunded, "Escrow must be in state Unfunded");
+        emit EscrowFunded(escrowAddress, Escrow(escrowAddress).balance());
+    }
+
+    /**
+    * Moves the escrow to the open state if it has been funded
+    * @dev Will send back any additional collateral above the `escrowAmount`
+    * back to the escrower before opening
+    */
     function openEscrow(address escrowAddress) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.Unfunded, "Escrow must be in state Unfunded");
@@ -144,11 +154,11 @@ contract EscrowLibrary {
         emit EscrowOpened(escrowAddress);
     }
 
-    /** Cashout the escrow sending the final balances after trading
+    /**
+    * Cashout the escrow with the final balances after trading
     * @dev Must be signed by both the escrower and payee trade keys
     * @dev Must be in Open state
-    * @param prevAmountTraded The total amount traded to the payee in the
-    * payment channel
+    * @param prevAmountTraded The total amount traded to the payee
     */
     function cashout(
         address escrowAddress,
@@ -183,12 +193,11 @@ contract EscrowLibrary {
     }
 
     /**
-    * Allows the escrower to refund the escrow after the `escrowTimelock` has
-    * been reached. This is a signed refund because it allows the refunder to
+    * Allows the escrower to refund the escrow after the `escrowTimelock`
+    * @dev This is a signed refund because it allows the refunder to
     * specify the amount traded in the escrow. This is useful for the escrower to
     * benevolently close the escrow with the final balances despite the other
-    * party being offline (even though the escrower could take the full escrow
-    * amount in this case).
+    * party being offline
     * @dev Must be signed by the escrower refund key
     * @dev Must be in Open state
     * @param prevAmountTraded The total amount traded to the payee in the
@@ -220,8 +229,10 @@ contract EscrowLibrary {
     }
 
     /**
-    * @notice Force refunds escrow funds in the event the escrower's keys are
-    * lost or if the escrower remains offline for an extended period of time
+    * Allows anyone to refund the escrow back to the escrower without a
+    * signature after escrowTimelock + FORCE_REFUND_TIME
+    * @dev This method can be used in the event the escrower's keys are lost
+    * or if the escrower remains offline for an extended period of time
     */
     function forceRefund(address escrowAddress) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
@@ -235,7 +246,8 @@ contract EscrowLibrary {
         emit EscrowClosed(escrowAddress, EscrowCloseReason.ForceRefund, 0x0);
     }
 
-    /** Post a hash puzzle unlocks lastest trade in the escrow
+    /**
+    * Post a hash puzzle unlocks lastest trade in the escrow
     * @dev Must be signed by both the escrower and payee trade keys
     * @dev Must be in Open state
     * @param prevAmountTraded The total amount traded to the payee in the
@@ -328,19 +340,21 @@ contract EscrowLibrary {
         emit EscrowClosed(escrowAddress, EscrowCloseReason.PuzzleRefund, puzzleParams.puzzleSighash);
     }
 
-    /** Verify a EC signature (v,r,s) on a message digest h
-    * Uses EIP-191 for ethereum signed messages
-    * @return retAddr The recovered address from the signature or 0 if signature is invalid
+    /**
+    * Moves the escrow to the Closed state and sends the final balances to escrower/payee
     */
-    function verify(bytes32 sighash, bytes memory sig) internal pure returns(address retAddr) {
-        retAddr = ECDSA.recover(sighash, sig);
-    }
-
     function closeEscrow(address escrowAddress, EscrowParams memory escrowParams) internal {
         escrowParams.escrowState = EscrowState.Closed;
 
         Escrow escrow = Escrow(escrowAddress);
         escrow.send(escrowParams.payeeReserve, escrowParams.payeeBalance);
         escrow.send(escrowParams.escrowReserve, escrowParams.escrowerBalance);
+    }
+
+    /** Verify a EC signature (v,r,s) on a message digest h
+    * @return retAddr The recovered address from the signature or 0 if signature is invalid
+    */
+    function verify(bytes32 sighash, bytes memory sig) internal pure returns(address retAddr) {
+        retAddr = ECDSA.recover(sighash, sig);
     }
 }

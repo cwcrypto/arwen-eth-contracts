@@ -145,13 +145,16 @@ contract EscrowLibrary {
         uint escrowAmount = escrowParams.escrowAmount;
         uint escrowBalance = escrow.balance();
 
+        // Check the escrow is funded for at least escrowAmount
         require(escrowBalance >= escrowAmount, "Escrow not funded");
-        if(escrowBalance > escrowAmount) {
-           escrow.send(escrowParams.escrowReserve, escrowBalance - escrowAmount);
-        }
 
         escrowParams.escrowState = EscrowState.Open;
         emit EscrowOpened(escrowAddress);
+
+        // If over-funded return any excess funds back to the escrower
+        if(escrowBalance > escrowAmount) {
+           escrow.send(escrowParams.escrowReserve, escrowBalance - escrowAmount);
+        }
     }
 
     /**

@@ -189,7 +189,7 @@ contract EscrowLibrary {
         escrowParams.escrowerBalance += escrowParams.escrowAmount - prevAmountTraded;
         closeEscrow(escrowAddress, escrowParams);
 
-        emit EscrowClosed(escrowAddress, EscrowCloseReason.Refund, sighash);
+        emit EscrowClosed(escrowAddress, EscrowCloseReason.Cashout, sighash);
     }
 
     /**

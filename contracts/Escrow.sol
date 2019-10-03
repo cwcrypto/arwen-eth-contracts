@@ -36,9 +36,9 @@ contract Escrow {
 
     // Events
     event EscrowOpened();
-    event PuzzlePosted(bytes32 puzzle);
+    event PuzzlePosted(bytes32 puzzSighash);
     event EscrowClosed(EscrowCloseReason reason, bytes32 sighash);
-    event Preimage(bytes32 preimage);
+    event Preimage(bytes32 preimage, bytes32 puzzSighash);
 
     /** Immutable State (only set once in constructor) */
     address payable escrowReserve;
@@ -197,7 +197,7 @@ contract Escrow {
         puzzleSighash = sighash;
 
         escrowState = EscrowState.PuzzlePosted;
-        emit PuzzlePosted(puzzle);
+        emit PuzzlePosted(puzzleSighash);
 
         // Return the previously traded funds
         sendToPayee(_prevAmountTraded);
@@ -216,7 +216,7 @@ contract Escrow {
         bytes32 h = keccak256(abi.encodePacked(_preimage));
         require(h == puzzle, "Invalid preimage");
 
-        emit Preimage(_preimage);
+        emit Preimage(_preimage, puzzleSighash);
         sendRemainingToPayee();
         closeEscrow(EscrowCloseReason.PuzzleSolve, puzzleSighash);
     }

@@ -151,7 +151,7 @@ contract EscrowLibrary {
     * payment channel
     */
     function cashout(
-        address payable escrowAddress,
+        address escrowAddress,
         uint prevAmountTraded,
         bytes memory eSig,
         bytes memory pSig
@@ -194,7 +194,7 @@ contract EscrowLibrary {
     * @param prevAmountTraded The total amount traded to the payee in the
     * payment channel
     */
-    function refund(address payable escrowAddress, uint prevAmountTraded, bytes memory eSig) public {
+    function refund(address escrowAddress, uint prevAmountTraded, bytes memory eSig) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.Open, "Escrow must be in state Open");
         require(now >= escrowParams.escrowTimelock, "Escrow timelock not reached");
@@ -296,7 +296,7 @@ contract EscrowLibrary {
     * @dev Must be in PuzzlePosted state
     * @param preimage The preimage x such that H(x) == puzzle
     */
-    function solvePuzzle(address payable escrowAddress, bytes32 preimage) public {
+    function solvePuzzle(address escrowAddress, bytes32 preimage) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.PuzzlePosted, "Escrow must be in state PuzzlePosted");
 
@@ -315,7 +315,7 @@ contract EscrowLibrary {
     * Escrower refunds the last trade amount after `puzzleTimelock` has been reached
     * @dev Must be in PuzzlePosted state
     */
-    function refundPuzzle(address payable escrowAddress) public {
+    function refundPuzzle(address escrowAddress) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.PuzzlePosted, "Escrow must be in state PuzzlePosted");
 

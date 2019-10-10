@@ -3,6 +3,8 @@ import { TransactionReceipt } from "web3/types";
 
 import * as encodeUtils from "./web3js-includes/Encodepacked";
 
+const crypto = require('crypto');
+
 // For up-to-date gas prices see: https://ethgasstation.info/
 const GAS_PRICE_GWEI = 2;
 const ETH_USD_PRICE = 170;
@@ -37,6 +39,13 @@ export function  generateAccount(): Account {
 
 export function getCurrentTimeUnixEpoch() {
     return Math.floor(new Date().valueOf() / 1000)
+}
+
+// preimage is a hex encoded string with '0x' prefix
+export function hashPreimage(preimage: string) : string {
+    let hasher = crypto.createHash('sha256');
+    let digest = hasher.update(preimage.slice(2), 'hex').digest('hex');
+    return `0x${digest}`;
 }
 
 interface DuoSigned { eSig: MessageSignature, pSig: MessageSignature };

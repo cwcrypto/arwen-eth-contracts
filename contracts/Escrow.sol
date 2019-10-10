@@ -213,7 +213,7 @@ contract Escrow {
         public
         inState(EscrowState.PuzzlePosted)
     {
-        bytes32 h = keccak256(abi.encodePacked(_preimage));
+        bytes32 h = sha256(abi.encodePacked(_preimage));
         require(h == puzzle, "Invalid preimage");
 
         emit Preimage(_preimage, puzzleSighash);

@@ -9,7 +9,7 @@ const EscrowFactory = artifacts.require("EscrowFactory");
 import { EthEscrowInstance } from '../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
-import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState } from './common';
+import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage } from './common';
 
 contract('EthEscrow', async (accounts) => {
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
@@ -138,7 +138,7 @@ contract('EthEscrow', async (accounts) => {
         var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         
         var preimage = web3.utils.keccak256("test preimage");
-        var puzzle = web3.utils.keccak256(preimage);
+        var puzzle = hashPreimage(preimage);
         var puzzleTimelock = getCurrentTimeUnixEpoch() + 24 * 60 * 60 ; // set puzzle timelock 1 day from now
         var { eSig, pSig } = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);
 
@@ -170,7 +170,7 @@ contract('EthEscrow', async (accounts) => {
         var escrow = await setupEthEscrow(1000, getCurrentTimeUnixEpoch());
         
         var preimage = web3.utils.keccak256("test preimage");
-        var puzzle = web3.utils.keccak256(preimage);
+        var puzzle = hashPreimage(preimage);
         var puzzleTimelock = getCurrentTimeUnixEpoch(); // set puzzle timelock to now
 
         var {eSig, pSig} = TSS.signPuzzle(escrow.address, 200, 200, puzzle, puzzleTimelock);

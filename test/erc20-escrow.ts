@@ -95,10 +95,10 @@ contract('Erc20Escrow', async (accounts) => {
         var escrowParams = await getEscrowParams(escrow.address);
         assert.equal(escrowParams.escrowAmount.toNumber(), escrowAmount);
         assert.equal(escrowParams.escrowTimelock.toNumber(), escrowTimelock);
-        assert.equal(escrowParams.escrowRefund, TSS.eRefund.address);
-        assert.equal(escrowParams.escrowTrade, TSS.eTrade.address);
+        assert.equal(escrowParams.escrowerRefund, TSS.eRefund.address);
+        assert.equal(escrowParams.escrowerTrade, TSS.eTrade.address);
         assert.equal(escrowParams.payeeTrade, TSS.pTrade.address);
-        assert.equal(escrowParams.escrowReserve, TSS.eReserve.address);
+        assert.equal(escrowParams.escrowerReserve, TSS.eReserve.address);
         assert.equal(escrowParams.payeeReserve, TSS.pReserve.address);
         assert.equal(escrowParams.escrowState.toNumber(), EscrowState.Open);
 

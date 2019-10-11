@@ -58,9 +58,9 @@ contract EscrowLibrary {
     struct EscrowParams {
         uint escrowAmount;
         uint escrowTimelock;
-        address payable escrowReserve;
-        address escrowTrade;
-        address escrowRefund;
+        address payable escrowerReserve;
+        address escrowerTrade;
+        address escrowerRefund;
         address payable payeeReserve;
         address payeeTrade;
         EscrowState escrowState;
@@ -92,9 +92,9 @@ contract EscrowLibrary {
         address escrow,
         uint escrowAmount,
         uint timelock,
-        address payable escrowReserve,
-        address escrowTrade,
-        address escrowRefund,
+        address payable escrowerReserve,
+        address escrowerTrade,
+        address escrowerRefund,
         address payable payeeReserve,
         address payeeTrade
     )
@@ -104,17 +104,20 @@ contract EscrowLibrary {
 
         require(escrowAmount > 0, "Escrow amount too low");
 
+        uint escrowerStartingBalance = 0;
+        uint payeeStartingBalance = 0;
+
         escrows[address(escrow)] = EscrowParams(
             escrowAmount,
             timelock,
-            escrowReserve,
-            escrowTrade,
-            escrowRefund,
+            escrowerReserve,
+            escrowerTrade,
+            escrowerRefund,
             payeeReserve,
             payeeTrade,
             EscrowState.Unfunded,
-            0,
-            0
+            escrowerStartingBalance,
+            payeeStartingBalance
         );
     }
 
@@ -150,7 +153,7 @@ contract EscrowLibrary {
 
         // If over-funded return any excess funds back to the escrower
         if(escrowBalance > escrowAmount) {
-           escrow.send(escrowParams.escrowReserve, escrowBalance - escrowAmount);
+           escrow.send(escrowParams.escrowerReserve, escrowBalance - escrowAmount);
         }
     }
 
@@ -182,7 +185,7 @@ contract EscrowLibrary {
         ));
 
         // Check signatures
-        require(verify(sighash, eSig) == escrowParams.escrowTrade, "Invalid escrower cashout sig");
+        require(verify(sighash, eSig) == escrowParams.escrowerTrade, "Invalid escrower cashout sig");
         require(verify(sighash, pSig) == escrowParams.payeeTrade, "Invalid payee cashout sig");
 
         escrowParams.payeeBalance += prevAmountTraded;
@@ -219,7 +222,7 @@ contract EscrowLibrary {
         ));
 
         // Check signature
-        require(verify(sighash, eSig) == escrowParams.escrowRefund, "Invalid escrower sig");
+        require(verify(sighash, eSig) == escrowParams.escrowerRefund, "Invalid escrower sig");
 
         escrowParams.payeeBalance += prevAmountTraded;
         escrowParams.escrowerBalance += escrowParams.escrowAmount - prevAmountTraded;
@@ -285,7 +288,7 @@ contract EscrowLibrary {
             puzzleTimelock
         ));
 
-        require(verify(sighash, eSig) == escrowParams.escrowTrade, "Invalid escrower sig");
+        require(verify(sighash, eSig) == escrowParams.escrowerTrade, "Invalid escrower sig");
         require(verify(sighash, pSig) == escrowParams.payeeTrade, "Invalid payee sig");
 
         // Save the puzzle parameters
@@ -348,7 +351,7 @@ contract EscrowLibrary {
 
         Escrow escrow = Escrow(escrowAddress);
         escrow.send(escrowParams.payeeReserve, escrowParams.payeeBalance);
-        escrow.send(escrowParams.escrowReserve, escrowParams.escrowerBalance);
+        escrow.send(escrowParams.escrowerReserve, escrowParams.escrowerBalance);
     }
 
     /** Verify a EC signature (v,r,s) on a message digest h

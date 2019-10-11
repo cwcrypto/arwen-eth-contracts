@@ -22,9 +22,9 @@ contract EscrowFactory is Ownable {
     function createEthEscrow(
         uint escrowAmount,
         uint timelock,
-        address payable escrowReserve,
-        address escrowTrade,
-        address escrowRefund,
+        address payable escrowerReserve,
+        address escrowerTrade,
+        address escrowerRefund,
         address payable payeeReserve,
         address payeeTrade
     )
@@ -34,9 +34,9 @@ contract EscrowFactory is Ownable {
             address(this),
             escrowAmount,
             timelock,
-            escrowReserve,
-            escrowTrade,
-            escrowRefund,
+            escrowerReserve,
+            escrowerTrade,
+            escrowerRefund,
             payeeReserve,
             payeeTrade
         ));
@@ -51,9 +51,9 @@ contract EscrowFactory is Ownable {
             address(escrow),
             escrowAmount,
             timelock,
-            escrowReserve,
-            escrowTrade,
-            escrowRefund,
+            escrowerReserve,
+            escrowerTrade,
+            escrowerRefund,
             payeeReserve,
             payeeTrade
         );
@@ -67,9 +67,9 @@ contract EscrowFactory is Ownable {
         address tknAddr,
         uint escrowAmount,
         uint timelock,
-        address payable escrowReserve,
-        address escrowTrade,
-        address escrowRefund,
+        address payable escrowerReserve,
+        address escrowerTrade,
+        address escrowerRefund,
         address payable payeeReserve,
         address payeeTrade
     )
@@ -80,9 +80,9 @@ contract EscrowFactory is Ownable {
             tknAddr,
             escrowAmount,
             timelock,
-            escrowReserve,
-            escrowTrade,
-            escrowRefund,
+            escrowerReserve,
+            escrowerTrade,
+            escrowerRefund,
             payeeReserve,
             payeeTrade
         ));
@@ -100,9 +100,9 @@ contract EscrowFactory is Ownable {
             address(escrow),
             escrowAmount,
             timelock,
-            escrowReserve,
-            escrowTrade,
-            escrowRefund,
+            escrowerReserve,
+            escrowerTrade,
+            escrowerRefund,
             payeeReserve,
             payeeTrade
         );

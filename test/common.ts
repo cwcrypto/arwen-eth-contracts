@@ -18,9 +18,9 @@ console.log(`Using ETH price of ${ETH_USD_PRICE} USD`);
 export interface EscrowParams {
     escrowAmount: BigNumber;
     escrowTimelock: BigNumber;
-    escrowReserve: string;
-    escrowRefund: string;
-    escrowTrade: string;
+    escrowerReserve: string;
+    escrowerRefund: string;
+    escrowerTrade: string;
     payeeReserve: string;
     payeeTrade: string;
     escrowState: BigNumber;

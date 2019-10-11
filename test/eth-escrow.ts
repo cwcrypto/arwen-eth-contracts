@@ -63,14 +63,6 @@ contract('EthEscrow', async (accounts) => {
 
     async function getEscrowParams(escrowAddress: string): Promise<EscrowParams> {
         return await escrowLibrary.escrows(escrowAddress) as any;
-        // var [escrowAmount, escrowTimelock, escrowRefund, escrowTrade, payeeTrade] = await escrowLibrary.escrows(escrowAddress);
-        // return {
-        //     escrowAmount: escrowAmount,
-        //     escrowTimelock: escrowTimelock,
-        //     escrowRefund: escrowRefund,
-        //     escrowTrade: escrowTrade,
-        //     payeeTrade: payeeTrade
-        // }
     }
 
     async function deployEthEscrowFromFactory(escrowAmount: number, escrowTimelock: number) : Promise<EthEscrowInstance> {
@@ -104,10 +96,10 @@ contract('EthEscrow', async (accounts) => {
         var escrowParams = await getEscrowParams(escrow.address);
         assert.equal(escrowParams.escrowAmount.toNumber(), escrowAmount, "escrow amount");
         assert.equal(escrowParams.escrowTimelock.toNumber(), escrowTimelock, "escrow timelock");
-        assert.equal(escrowParams.escrowRefund, TSS.eRefund.address, "escrower refund address");
-        assert.equal(escrowParams.escrowTrade, TSS.eTrade.address, "escrower trade address");
+        assert.equal(escrowParams.escrowerRefund, TSS.eRefund.address, "escrower refund address");
+        assert.equal(escrowParams.escrowerTrade, TSS.eTrade.address, "escrower trade address");
         assert.equal(escrowParams.payeeTrade, TSS.pTrade.address, "payee trade address");
-        assert.equal(escrowParams.escrowReserve, TSS.eReserve.address, "escrower reserve address");
+        assert.equal(escrowParams.escrowerReserve, TSS.eReserve.address, "escrower reserve address");
         assert.equal(escrowParams.payeeReserve, TSS.pReserve.address, "payee reserve address");
         assert.equal(escrowParams.escrowState.toNumber(), EscrowState.Open, "escrow state");
         assert.equal(escrowParams.escrowerBalance.toString(), "0", "starting escrower balance");

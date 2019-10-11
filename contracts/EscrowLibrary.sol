@@ -101,13 +101,13 @@ contract EscrowLibrary {
         public
         onlyFactory
     {
-
+        require(escrows[escrow].escrowState == EscrowState.None, "Escrow already exists");
         require(escrowAmount > 0, "Escrow amount too low");
 
         uint escrowerStartingBalance = 0;
         uint payeeStartingBalance = 0;
 
-        escrows[address(escrow)] = EscrowParams(
+        escrows[escrow] = EscrowParams(
             escrowAmount,
             timelock,
             escrowerReserve,

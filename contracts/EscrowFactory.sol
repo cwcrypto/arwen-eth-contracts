@@ -8,6 +8,7 @@ import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 contract EscrowFactory is Ownable {
 
     EscrowLibrary public escrowLibrary;
+    mapping(bytes32 => bool) internal escrowsCreated;
 
     constructor () public {
         escrowLibrary = new EscrowLibrary();
@@ -40,6 +41,8 @@ contract EscrowFactory is Ownable {
             payeeTrade
         ));
 
+        require(! escrowsCreated[escrowParamsHash], "escrow already exists");
+        
         EthEscrow escrow = new EthEscrow(
             address(escrowLibrary)
         );
@@ -54,6 +57,8 @@ contract EscrowFactory is Ownable {
             payeeReserve,
             payeeTrade
         );
+
+        escrowsCreated[escrowParamsHash] = true;
 
         emit EscrowCreated(escrowParamsHash, address(escrow));
     }
@@ -81,6 +86,10 @@ contract EscrowFactory is Ownable {
             payeeReserve,
             payeeTrade
         ));
+
+        require(! escrowsCreated[escrowParamsHash], "escrow already exists");
+
+        escrowsCreated[escrowParamsHash] = true;
 
         Erc20Escrow escrow = new Erc20Escrow(
             address(escrowLibrary),

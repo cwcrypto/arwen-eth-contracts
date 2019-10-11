@@ -101,10 +101,7 @@ contract EscrowLibrary {
         public
         onlyFactory
     {
-        
-        EscrowParams storage checkEscrow = escrows[address(escrow)];
 
-        require(checkEscrow.escrowState == EscrowState.None, "Escrow already exists");
         require(escrowAmount > 0, "Escrow amount too low");
 
         escrows[address(escrow)] = EscrowParams(

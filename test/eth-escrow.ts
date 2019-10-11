@@ -228,8 +228,19 @@ contract('EthEscrow', async (accounts) => {
     });
 
 
+    it("Test revert for escrow of size 0", async () => {
+        var expectedError = "Returned error: VM Exception while processing transaction: revert Escrow amount too low -- Reason given: Escrow amount too low."
+        
+        try
+        {
+            await setupEthEscrow(0, getCurrentTimeUnixEpoch());            
+        } catch (error) {
+            assert.equal(expectedError, error.message);
+        }
+    });
+
     it("Test revert for duplicated escrow params hash", async () => {
-        var expectedError = "Returned error: VM Exception while processing transaction: revert Escrow already opened or escrowAmount too low -- Reason given: Escrow already exists."
+        var expectedError = "Returned error: VM Exception while processing transaction: revert escrow already exists -- Reason given: escrow already exists."
         
         var time = getCurrentTimeUnixEpoch()
         await setupEthEscrow(1000, time);
@@ -237,18 +248,6 @@ contract('EthEscrow', async (accounts) => {
         try
         {
             await setupEthEscrow(1000, time);            
-        } catch (error) {
-            assert.equal(expectedError, error.message);
-        }
-    });
-
-
-    it("Test revert for escrow of size 0", async () => {
-        var expectedError = "Returned error: VM Exception while processing transaction: revert Escrow amount too low -- Reason given: Escrow amount too low."
-        
-        try
-        {
-            await setupEthEscrow(0, getCurrentTimeUnixEpoch());            
         } catch (error) {
             assert.equal(expectedError, error.message);
         }

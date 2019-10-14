@@ -4,20 +4,19 @@ import "./Escrow.sol";
 import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 
 
+/**
+* Central contract containing the business logic for interacting with and
+* managing the state of Arwen unidirectional payment channels
+* @dev Escrows contracts are created and linked to this library from the
+* EscrowFactory contract
+*/
 contract EscrowLibrary {
 
     string constant SIGNATURE_PREFIX = '\x19Ethereum Signed Message:\n';
     uint constant FORCE_REFUND_TIME = 2 days;
 
-    enum MessageTypeId {
-        None,
-        Cashout,
-        Puzzle,
-        Refund
-    }
-
     /**
-    * @title Escrow State Machine
+    * Escrow State Machine
     * @param None Preliminary state of an escrow before it has been created.
     * @param Unfunded Initial state of the escrow once created. The escrow can only
     * transition to the Open state once it has been funded with required escrow
@@ -38,7 +37,17 @@ contract EscrowLibrary {
     }
 
     /**
-    * @dev Possible reasons the escrow can become closed
+    * Unique ID for each different type of signed message in the protocol
+    */
+    enum MessageTypeId {
+        None,
+        Cashout,
+        Puzzle,
+        Refund
+    }
+
+    /**
+    * Possible reasons the escrow can become closed
     */
     enum EscrowCloseReason {
         Refund,
@@ -48,36 +57,63 @@ contract EscrowLibrary {
         ForceRefund
     }
 
-    // Events
     event EscrowOpened(address indexed escrow);
     event EscrowFunded(address indexed escrow, uint amountFunded);
     event PuzzlePosted(address indexed escrow, bytes32 puzzleSighash);
     event Preimage(address indexed escrow, bytes32 preimage, bytes32 puzzleSighash);
-    event EscrowClosed(address indexed escrow, EscrowCloseReason reason, bytes32 sighash);
+    event EscrowClosed(address indexed escrow, EscrowCloseReason reason, bytes32 closingSighash);
 
     struct EscrowParams {
+        // The amount expected to be funded by the escrower to open the payment channel
         uint escrowAmount;
+
+        // Expiration time of the escrow when it can refunded by the escrower
         uint escrowTimelock;
+
+        // Escrower's pub keys
         address payable escrowerReserve;
         address escrowerTrade;
         address escrowerRefund;
+
+        // Payee's pub keys
         address payable payeeReserve;
         address payeeTrade;
+
+        // Current state of the escrow
         EscrowState escrowState;
+
+        // Internal payee/escrower balances within the payment channel
         uint escrowerBalance;
         uint payeeBalance;
     }
 
+    /**
+    * Represents a trade in the payment channel that can be executed
+    * on-chain by the payee by revealing a hash preimage
+    */
     struct PuzzleParams {
+        // The amount of coins in this trade
         uint tradeAmount;
+
+        // A hash output or "puzzle" which can be "solved" by revealing the preimage
         bytes32 puzzle;
+
+        // The expiration time of the puzzle when the trade can be refunded by the escrower
         uint puzzleTimelock;
+
+        // The signature hash of the `postPuzzle` message
         bytes32 puzzleSighash;
     }
 
+    // The EscrowFactory contract that deployed this library
     address public escrowFactory;
-    mapping(address => PuzzleParams) public postedPuzzles;
+
+    // Mapping of escrow address to EscrowParams
     mapping(address => EscrowParams) public escrows;
+
+    // Mapping of escrow address to PuzzleParams
+    // Only a single puzzle can be posted for a given escrow
+    mapping(address => PuzzleParams) public puzzles;
 
     constructor() public {
         escrowFactory = msg.sender;
@@ -88,6 +124,11 @@ contract EscrowLibrary {
         _;
     }
 
+    /**
+    * Add a new escrow that is controlled by the library
+    * @dev Only callable by the factory which should have already deployed the
+    * escrow at the provided address
+    */
     function newEscrow(
         address escrow,
         uint escrowAmount,
@@ -161,11 +202,11 @@ contract EscrowLibrary {
     * Cashout the escrow with the final balances after trading
     * @dev Must be signed by both the escrower and payee trade keys
     * @dev Must be in Open state
-    * @param prevAmountTraded The total amount traded to the payee
+    * @param amountTraded The total amount traded to the payee
     */
     function cashout(
         address escrowAddress,
-        uint prevAmountTraded,
+        uint amountTraded,
         bytes memory eSig,
         bytes memory pSig
     )
@@ -181,32 +222,31 @@ contract EscrowLibrary {
             messageLength,
             escrowAddress,
             uint8(MessageTypeId.Cashout),
-            prevAmountTraded
+            amountTraded
         ));
 
         // Check signatures
         require(verify(sighash, eSig) == escrowParams.escrowerTrade, "Invalid escrower cashout sig");
         require(verify(sighash, pSig) == escrowParams.payeeTrade, "Invalid payee cashout sig");
 
-        escrowParams.payeeBalance += prevAmountTraded;
-        escrowParams.escrowerBalance += escrowParams.escrowAmount - prevAmountTraded;
+        escrowParams.payeeBalance += amountTraded;
+        escrowParams.escrowerBalance += escrowParams.escrowAmount - amountTraded;
         closeEscrow(escrowAddress, escrowParams);
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.Cashout, sighash);
     }
 
     /**
-    * Allows the escrower to refund the escrow after the `escrowTimelock`
+    * Allows the escrower to refund the escrow after the escrow expires
     * @dev This is a signed refund because it allows the refunder to
     * specify the amount traded in the escrow. This is useful for the escrower to
     * benevolently close the escrow with the final balances despite the other
     * party being offline
     * @dev Must be signed by the escrower refund key
     * @dev Must be in Open state
-    * @param prevAmountTraded The total amount traded to the payee in the
-    * payment channel
+    * @param amountTraded The total amount traded to the payee
     */
-    function refund(address escrowAddress, uint prevAmountTraded, bytes memory eSig) public {
+    function refund(address escrowAddress, uint amountTraded, bytes memory eSig) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.Open, "Escrow must be in state Open");
         require(now >= escrowParams.escrowTimelock, "Escrow timelock not reached");
@@ -218,14 +258,14 @@ contract EscrowLibrary {
             messageLength,
             escrowAddress,
             uint8(MessageTypeId.Refund),
-            prevAmountTraded
+            amountTraded
         ));
 
         // Check signature
         require(verify(sighash, eSig) == escrowParams.escrowerRefund, "Invalid escrower sig");
 
-        escrowParams.payeeBalance += prevAmountTraded;
-        escrowParams.escrowerBalance += escrowParams.escrowAmount - prevAmountTraded;
+        escrowParams.payeeBalance += amountTraded;
+        escrowParams.escrowerBalance += escrowParams.escrowAmount - amountTraded;
         closeEscrow(escrowAddress, escrowParams);
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.Refund, sighash);
@@ -255,7 +295,7 @@ contract EscrowLibrary {
     * @dev Must be in Open state
     * @param prevAmountTraded The total amount traded to the payee in the
     * payment channel before the last trade
-    * @param tradeAmount The current trade amount
+    * @param tradeAmount The last trade amount
     * @param puzzle A hash puzzle where the solution (preimage) releases the
     * `tradeAmount` to the payee
     * @param  puzzleTimelock The time at which the `tradeAmount` can be
@@ -291,8 +331,7 @@ contract EscrowLibrary {
         require(verify(sighash, eSig) == escrowParams.escrowerTrade, "Invalid escrower sig");
         require(verify(sighash, pSig) == escrowParams.payeeTrade, "Invalid payee sig");
 
-        // Save the puzzle parameters
-        postedPuzzles[escrowAddress] = PuzzleParams(
+        puzzles[escrowAddress] = PuzzleParams(
             tradeAmount,
             puzzle,
             puzzleTimelock,
@@ -315,7 +354,7 @@ contract EscrowLibrary {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.PuzzlePosted, "Escrow must be in state PuzzlePosted");
 
-        PuzzleParams memory puzzleParams = postedPuzzles[escrowAddress];
+        PuzzleParams memory puzzleParams = puzzles[escrowAddress];
         bytes32 h = sha256(abi.encodePacked(preimage));
         require(h == puzzleParams.puzzle, "Invalid preimage");
         emit Preimage(escrowAddress, preimage, puzzleParams.puzzleSighash);
@@ -334,7 +373,7 @@ contract EscrowLibrary {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.PuzzlePosted, "Escrow must be in state PuzzlePosted");
 
-        PuzzleParams memory puzzleParams = postedPuzzles[escrowAddress];
+        PuzzleParams memory puzzleParams = puzzles[escrowAddress];
         require(now >= puzzleParams.puzzleTimelock, "Puzzle timelock not reached");
         
         escrowParams.escrowerBalance += puzzleParams.tradeAmount;
@@ -354,7 +393,8 @@ contract EscrowLibrary {
         escrow.send(escrowParams.escrowerReserve, escrowParams.escrowerBalance);
     }
 
-    /** Verify a EC signature (v,r,s) on a message digest h
+    /**
+    * Verify a EC signature (v,r,s) on a message digest h
     * @return retAddr The recovered address from the signature or 0 if signature is invalid
     */
     function verify(bytes32 sighash, bytes memory sig) internal pure returns(address retAddr) {

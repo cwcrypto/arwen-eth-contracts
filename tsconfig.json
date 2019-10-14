@@ -17,5 +17,5 @@
     "allowJs": true,
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "example", "build"]
+  "exclude": ["test/web3js-includes", "node_modules", "example", "build"]
 }

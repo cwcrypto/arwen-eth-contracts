@@ -29,7 +29,7 @@ export interface EscrowParams {
 }
 
 /**
- * Escrow state enum matching the Escrow.sol internal state machine
+ * Escrow state machine matching EscrowLibrary.sol
  */
 export enum EscrowState {
     None,
@@ -40,7 +40,7 @@ export enum EscrowState {
 }
 
 /**
- * Type of a message that is being signed and sent to an Escrow
+ * Type of a message that is being signed matching EscrowLibrary.sol
  */
 export enum MessageTypeId {
     None,

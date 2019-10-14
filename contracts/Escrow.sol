@@ -5,19 +5,17 @@ import "./EscrowLibrary.sol";
 
 
 /**
-* @title CWC Escrow Contract
-* @dev Implementation of a CWC unidirectional escrow payment channel
-* @dev Abstract contract with methods that must be implemented for either ETH
-* or ERC20 tokens in derived contracts
+* Thin wrapper around a ETH/ERC20 payment channel deposit that is controlled
+* by a library contract for the purpose of trading with atomic swaps using the
+* Arwen protocol.
+* @dev Abstract contract with `balance` and `send` methods that must be implemented
+* for either ETH or ERC20 tokens in derived contracts. The `send` method should only
+* callable by the library contract that controls this escrow
 */
 contract Escrow {
 
     address public escrowLibrary;
 
-    /**
-    * @dev Method should only be callable by the escrow library contract that is
-    * associated with this escrow
-    */
     modifier onlyLibrary() {
         require(msg.sender == escrowLibrary, "Only callable by library contract");
         _;
@@ -33,12 +31,17 @@ contract Escrow {
 
 
 /**
-* @title CWC Escrow Contract backed by ETH
+* Escrow Contract backed by ETH
 */
 contract EthEscrow is Escrow {
 
     constructor(address escrowLibrary) public Escrow(escrowLibrary) { }
 
+    /**
+    * Payable fallback method that allows the escrow to be funded and triggers
+    * a `checkFunded` call on the library contract to emit an event when the
+    * escrow becomes fully funded
+    */
     function () external payable {
        EscrowLibrary(escrowLibrary).checkFunded(address(this));
     }
@@ -54,17 +57,14 @@ contract EthEscrow is Escrow {
 
 
 /**
-* @title CWC Escrow Contract backed by a ERC20 token
-* @dev Escrow starts in the Unfunded state and only moves to Open once the
-* `fundEscrow` function is called which also transfers `escrowAmount` of tokens
-* into this contract from a target address that has approved the transfer
+* Escrow Contract backed by a ERC20 token
 */
 contract Erc20Escrow is Escrow {
 
     ERC20 public token;
 
     constructor(address escrowLibrary, address tknAddr) public Escrow(escrowLibrary) {
-        // Validate the token address implements the ERC 20 standard
+        // Validate the token address implements the ERC20 standard
         token = ERC20(tknAddr);
     }
 

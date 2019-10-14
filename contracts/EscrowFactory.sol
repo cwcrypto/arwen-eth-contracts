@@ -5,6 +5,13 @@ import "./EscrowLibrary.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
 
+/**
+* Creates an EscrowLibrary contract and allows for creating new escrows linked
+* to that library
+* @dev The factory  contract can be self-destructed by the owner to prevent
+* new escrows from being created without affecting the library and the ability
+* to close already existing escrows
+*/
 contract EscrowFactory is Ownable {
 
     EscrowLibrary public escrowLibrary;

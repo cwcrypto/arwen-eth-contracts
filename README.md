@@ -13,13 +13,13 @@ npm install
 
 Terminal #1
 ```
-ganache-cli -p 9545
+ganache-cli -p 9545 -l 9000000
 ```
 
 Terminal #2
 ```
 npm run build
-truffle test
+npm test
 ```
 
 ## [Solidity](https://solidity.readthedocs.io/en/develop/index.html)
@@ -32,10 +32,6 @@ The official solidity documentation is a great resource for both learning solidi
 
 - See the official solidity [style guide](https://solidity.readthedocs.io/en/develop/style-guide.html#style-guide). Many of these style guide standards are enforced by [solhint](#solhint).
 - Comments for contracts and functions should adhere to the ethereum [NatSpec guide](https://solidity.readthedocs.io/en/develop/style-guide.html#natspec) which uses doxygen-like comments.
-
-#### Custom Style Guide Additions
-
-- Function parameters should start with `_` and be mixedCase to easily differentiate from state variables.
 
 ## Development Environment
 
@@ -67,7 +63,6 @@ Truffle is an ethereum smart contract development toolchain with many awesome fe
 
 - Compile and deploy solidity contracts
 - Create js abstractions that can be used to interact with deployed contracts
-- Development environment with a simulated evm and blockchain
 - Importing solidity libraries that are installed as npm modules
 - Migrations for managing deployments of smart contracts
 - EVM debugger

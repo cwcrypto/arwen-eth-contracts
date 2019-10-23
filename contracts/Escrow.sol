@@ -26,7 +26,7 @@ contract Escrow {
     }
 
     function balance() public returns (uint);
-    function send(address payable addr, uint amt) public;
+    function send(address payable addr, uint amt) public returns (bool);
 }
 
 
@@ -46,8 +46,8 @@ contract EthEscrow is Escrow {
        EscrowLibrary(escrowLibrary).checkFunded(address(this));
     }
 
-    function send(address payable addr, uint amt) public onlyLibrary {
-        addr.send(amt);
+    function send(address payable addr, uint amt) public onlyLibrary returns (bool) {
+        return addr.send(amt);
     }
 
     function balance() public returns (uint) {
@@ -68,8 +68,8 @@ contract Erc20Escrow is Escrow {
         token = ERC20(tknAddr);
     }
 
-    function send(address payable addr, uint amt) public onlyLibrary {
-        token.transfer(addr, amt);
+    function send(address payable addr, uint amt) public onlyLibrary returns (bool) {
+        return token.transfer(addr, amt);
     }
 
     function balance() public returns (uint) {

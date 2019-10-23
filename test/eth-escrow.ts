@@ -184,8 +184,14 @@ contract('EthEscrow', async (accounts) => {
         }
 
         // Solving the puzzle with the correct preimage should succeed and release the tradeAmount to the payee 
-        var txResult = await escrowLibrary.solvePuzzle(escrow.address, preimage);
-        gasMeter.TrackGasUsage("solvePuzzle", txResult.receipt);
+        var solveResp = await escrowLibrary.solvePuzzle(escrow.address, preimage);
+        gasMeter.TrackGasUsage("solvePuzzle", solveResp.receipt);
+
+        var withdrawEscrowerResp = await escrowLibrary.withdraw(escrow.address, true);
+        gasMeter.TrackGasUsage("withdraw escrower", withdrawEscrowerResp.receipt);
+
+        var withdrawPayeeResp = await escrowLibrary.withdraw(escrow.address, false);
+        gasMeter.TrackGasUsage("withdraw payee", withdrawPayeeResp.receipt);
         
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "600", "final escrower reserve balance");
         assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "400", "final payee reserve balance");
@@ -212,8 +218,14 @@ contract('EthEscrow', async (accounts) => {
         assert.equal(escrowParams.escrowState.toNumber(), EscrowState.PuzzlePosted);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
-        var txResult = await escrowLibrary.refundPuzzle(escrow.address);
-        gasMeter.TrackGasUsage("refundPuzzle", txResult.receipt);
+        var refundPuzzleResp = await escrowLibrary.refundPuzzle(escrow.address);
+        gasMeter.TrackGasUsage("refundPuzzle", refundPuzzleResp.receipt);
+
+        var withdrawEscrowerResp = await escrowLibrary.withdraw(escrow.address, true);
+        gasMeter.TrackGasUsage("withdraw escrower", withdrawEscrowerResp.receipt);
+
+        var withdrawPayeeResp = await escrowLibrary.withdraw(escrow.address, false);
+        gasMeter.TrackGasUsage("withdraw payee", withdrawPayeeResp.receipt);
 
         assert.equal(await web3.eth.getBalance(TSS.eReserve.address), "800", "final escrower reserve balance");
         assert.equal(await web3.eth.getBalance(TSS.pReserve.address), "200", "final payee reserve balance");

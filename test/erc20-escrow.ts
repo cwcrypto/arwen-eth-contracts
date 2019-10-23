@@ -181,8 +181,14 @@ contract('Erc20Escrow', async (accounts) => {
         }
 
         // Solving the puzzle with the correct preimage should succeed and release the tradeAmount to the payee 
-        var txResult = await escrowLibrary.solvePuzzle(escrow.address, preimage);
-        gasMeter.TrackGasUsage("solvePuzzle", txResult.receipt);
+        var solvePuzzleResp = await escrowLibrary.solvePuzzle(escrow.address, preimage);
+        gasMeter.TrackGasUsage("solvePuzzle", solvePuzzleResp.receipt);
+
+        var withdrawEscrowerResp = await escrowLibrary.withdraw(escrow.address, true);
+        gasMeter.TrackGasUsage("withdraw escrower", withdrawEscrowerResp.receipt);
+
+        var withdrawPayeeResp = await escrowLibrary.withdraw(escrow.address, false);
+        gasMeter.TrackGasUsage("withdraw payee", withdrawPayeeResp.receipt);
         
         assert.isTrue(new BigNumber(600).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)), "final escrower reserve balance");
         assert.isTrue(new BigNumber(400).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)), "final payee reserve balance");
@@ -208,8 +214,14 @@ contract('Erc20Escrow', async (accounts) => {
         assert.equal(escrowParams.escrowState.toNumber(), EscrowState.PuzzlePosted);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
-        var txResult = await escrowLibrary.refundPuzzle(escrow.address);
-        gasMeter.TrackGasUsage("refundPuzzle", txResult.receipt);
+        var refundPuzzleResp = await escrowLibrary.refundPuzzle(escrow.address);
+        gasMeter.TrackGasUsage("refundPuzzle", refundPuzzleResp.receipt);
+
+        var withdrawEscrowerResp = await escrowLibrary.withdraw(escrow.address, true);
+        gasMeter.TrackGasUsage("withdraw escrower", withdrawEscrowerResp.receipt);
+
+        var withdrawPayeeResp = await escrowLibrary.withdraw(escrow.address, false);
+        gasMeter.TrackGasUsage("withdraw payee", withdrawPayeeResp.receipt);
 
         assert.isTrue(new BigNumber(800).isEqualTo(await testToken.balanceOf(TSS.eReserve.address)), "final escrower reserve balance");
         assert.isTrue(new BigNumber(200).isEqualTo(await testToken.balanceOf(TSS.pReserve.address)), "final payee reserve balance");

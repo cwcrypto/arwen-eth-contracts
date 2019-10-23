@@ -66,6 +66,7 @@ contract EscrowLibrary {
     event PuzzlePosted(address indexed escrow, bytes32 puzzleSighash);
     event Preimage(address indexed escrow, bytes32 preimage, bytes32 puzzleSighash);
     event EscrowClosed(address indexed escrow, EscrowCloseReason reason, bytes32 closingSighash);
+    event FundsTransferred(address indexed escrow, address reserveAddress, bool success);
 
     struct EscrowParams {
         // The amount expected to be funded by the escrower to open the payment channel
@@ -238,7 +239,10 @@ contract EscrowLibrary {
 
         escrowParams.payeeBalance = amountTraded;
         escrowParams.escrowerBalance = escrowParams.escrowAmount.sub(amountTraded);
-        closeEscrow(escrowAddress, escrowParams);
+        escrowParams.escrowState = EscrowState.Closed;
+
+        if(escrowParams.escrowerBalance > 0) sendEscrower(escrowAddress, escrowParams);
+        if(escrowParams.payeeBalance > 0) sendPayee(escrowAddress, escrowParams);
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.Cashout, sighash);
     }
@@ -273,7 +277,10 @@ contract EscrowLibrary {
 
         escrowParams.payeeBalance = amountTraded;
         escrowParams.escrowerBalance = escrowParams.escrowAmount.sub(amountTraded);
-        closeEscrow(escrowAddress, escrowParams);
+        escrowParams.escrowState = EscrowState.Closed;
+
+        if(escrowParams.escrowerBalance > 0) sendEscrower(escrowAddress, escrowParams);
+        if(escrowParams.payeeBalance > 0) sendPayee(escrowAddress, escrowParams);
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.Refund, sighash);
     }
@@ -290,7 +297,9 @@ contract EscrowLibrary {
         require(now >= escrowParams.escrowTimelock + FORCE_REFUND_TIME, "Escrow force refund timelock not reached");
 
         escrowParams.escrowerBalance = Escrow(escrowAddress).balance();
-        closeEscrow(escrowAddress, escrowParams);
+        escrowParams.escrowState = EscrowState.Closed;
+
+        if(escrowParams.escrowerBalance > 0) sendEscrower(escrowAddress, escrowParams);
 
         // Use 0x0 as the closing sighash because there is no signature required
         emit EscrowClosed(escrowAddress, EscrowCloseReason.ForceRefund, 0x0);
@@ -367,7 +376,7 @@ contract EscrowLibrary {
         emit Preimage(escrowAddress, preimage, puzzleParams.puzzleSighash);
 
         escrowParams.payeeBalance = escrowParams.payeeBalance.add(puzzleParams.tradeAmount);
-        closeEscrow(escrowAddress, escrowParams);
+        escrowParams.escrowState = EscrowState.Closed;
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.PuzzleSolve, puzzleParams.puzzleSighash);
     }
@@ -384,20 +393,41 @@ contract EscrowLibrary {
         require(now >= puzzleParams.puzzleTimelock, "Puzzle timelock not reached");
         
         escrowParams.escrowerBalance = escrowParams.escrowerBalance.add(puzzleParams.tradeAmount);
-        closeEscrow(escrowAddress, escrowParams);
+        escrowParams.escrowState = EscrowState.Closed;
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.PuzzleRefund, puzzleParams.puzzleSighash);
     }
 
-    /**
-    * Moves the escrow to the Closed state and sends the final balances to escrower/payee
-    */
-    function closeEscrow(address escrowAddress, EscrowParams memory escrowParams) internal {
-        escrowParams.escrowState = EscrowState.Closed;
+    function withdraw(address escrowAddress, bool escrower) public {
+        EscrowParams storage escrowParams = escrows[escrowAddress];
 
+        if(escrower) {
+            require(escrowParams.escrowerBalance > 0);
+            sendEscrower(escrowAddress, escrowParams);
+        } else {
+            require(escrowParams.payeeBalance > 0);
+            sendPayee(escrowAddress, escrowParams);
+        }
+    }
+
+    function sendEscrower(address escrowAddress, EscrowParams storage escrowParams) internal {
         Escrow escrow = Escrow(escrowAddress);
-        escrow.send(escrowParams.payeeReserve, escrowParams.payeeBalance);
-        escrow.send(escrowParams.escrowerReserve, escrowParams.escrowerBalance);
+
+        bool success = escrow.send(escrowParams.escrowerReserve, escrowParams.escrowerBalance);
+        if(success) {
+            escrowParams.escrowerBalance = 0;
+        }
+        emit FundsTransferred(escrowAddress, escrowParams.escrowerReserve, success);
+    }
+
+    function sendPayee(address escrowAddress, EscrowParams storage escrowParams) internal {
+        Escrow escrow = Escrow(escrowAddress);
+
+        bool success = escrow.send(escrowParams.payeeReserve, escrowParams.payeeBalance);
+        if(success) {
+            escrowParams.payeeBalance = 0;
+        }
+        emit FundsTransferred(escrowAddress, escrowParams.payeeReserve, success);
     }
 
     /**

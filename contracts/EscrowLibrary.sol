@@ -1,6 +1,8 @@
 pragma solidity ^0.5.0;
 
 import "./Escrow.sol";
+
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 
 
@@ -11,6 +13,8 @@ import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 * EscrowFactory contract
 */
 contract EscrowLibrary {
+
+    using SafeMath for uint;
 
     string constant SIGNATURE_PREFIX = '\x19Ethereum Signed Message:\n';
     uint constant FORCE_REFUND_TIME = 2 days;
@@ -194,7 +198,7 @@ contract EscrowLibrary {
 
         // If over-funded return any excess funds back to the escrower
         if(escrowBalance > escrowAmount) {
-           escrow.send(escrowParams.escrowerReserve, escrowBalance - escrowAmount);
+           escrow.send(escrowParams.escrowerReserve, escrowBalance.sub(escrowAmount));
         }
     }
 
@@ -229,8 +233,8 @@ contract EscrowLibrary {
         require(verify(sighash, eSig) == escrowParams.escrowerTrade, "Invalid escrower cashout sig");
         require(verify(sighash, pSig) == escrowParams.payeeTrade, "Invalid payee cashout sig");
 
-        escrowParams.payeeBalance += amountTraded;
-        escrowParams.escrowerBalance += escrowParams.escrowAmount - amountTraded;
+        escrowParams.payeeBalance = amountTraded;
+        escrowParams.escrowerBalance = escrowParams.escrowAmount.sub(amountTraded);
         closeEscrow(escrowAddress, escrowParams);
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.Cashout, sighash);
@@ -264,8 +268,8 @@ contract EscrowLibrary {
         // Check signature
         require(verify(sighash, eSig) == escrowParams.escrowerRefund, "Invalid escrower sig");
 
-        escrowParams.payeeBalance += amountTraded;
-        escrowParams.escrowerBalance += escrowParams.escrowAmount - amountTraded;
+        escrowParams.payeeBalance = amountTraded;
+        escrowParams.escrowerBalance = escrowParams.escrowAmount.sub(amountTraded);
         closeEscrow(escrowAddress, escrowParams);
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.Refund, sighash);
@@ -339,8 +343,8 @@ contract EscrowLibrary {
         );
 
         escrowParams.escrowState = EscrowState.PuzzlePosted;
-        escrowParams.payeeBalance += prevAmountTraded;
-        escrowParams.escrowerBalance += escrowParams.escrowAmount - prevAmountTraded - tradeAmount;
+        escrowParams.payeeBalance = prevAmountTraded;
+        escrowParams.escrowerBalance = escrowParams.escrowAmount.sub(prevAmountTraded).sub(tradeAmount);
 
         emit PuzzlePosted(escrowAddress, sighash);
     }
@@ -359,7 +363,7 @@ contract EscrowLibrary {
         require(h == puzzleParams.puzzle, "Invalid preimage");
         emit Preimage(escrowAddress, preimage, puzzleParams.puzzleSighash);
 
-        escrowParams.payeeBalance += puzzleParams.tradeAmount;
+        escrowParams.payeeBalance = escrowParams.payeeBalance.add(puzzleParams.tradeAmount);
         closeEscrow(escrowAddress, escrowParams);
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.PuzzleSolve, puzzleParams.puzzleSighash);
@@ -376,7 +380,7 @@ contract EscrowLibrary {
         PuzzleParams memory puzzleParams = puzzles[escrowAddress];
         require(now >= puzzleParams.puzzleTimelock, "Puzzle timelock not reached");
         
-        escrowParams.escrowerBalance += puzzleParams.tradeAmount;
+        escrowParams.escrowerBalance = escrowParams.escrowerBalance.add(puzzleParams.tradeAmount);
         closeEscrow(escrowAddress, escrowParams);
 
         emit EscrowClosed(escrowAddress, EscrowCloseReason.PuzzleRefund, puzzleParams.puzzleSighash);

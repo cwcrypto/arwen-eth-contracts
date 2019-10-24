@@ -169,7 +169,10 @@ contract EscrowLibrary {
     */
     function checkFunded(address escrowAddress) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
+
+        require(msg.sender == escrowAddress, "Only callable by the Escrow contract");
         require(escrowParams.escrowState == EscrowState.Unfunded, "Escrow must be in state Unfunded");
+
         emit EscrowFunded(escrowAddress, Escrow(escrowAddress).balance());
     }
 

@@ -3,12 +3,12 @@ import Web3 from 'web3';
 const web3 = new Web3('http://localhost:9545');
 
 // Import truffle contract abstractions
-const EscrowFactory = artifacts.require("EscrowFactory");
+const EscrowFactoryWithERC20 = artifacts.require("EscrowFactoryWithERC20");
 const EscrowLibrary = artifacts.require("EscrowLibrary");
 const Erc20Escrow = artifacts.require("Erc20Escrow");
 const TestToken = artifacts.require("TestToken");
 
-import { EscrowFactoryInstance, EscrowLibraryInstance, Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts';
+import { EscrowFactoryWithERC20Instance, EscrowLibraryInstance, Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
 import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK } from './common';
@@ -19,11 +19,11 @@ contract('Erc20Escrow', async (accounts) => {
     var TSS: TestSigningService;
     var gasMeter: GasMeter;
 
-    var escrowFactory: EscrowFactoryInstance;
+    var escrowFactory: EscrowFactoryWithERC20Instance;
     var escrowLibrary: EscrowLibraryInstance;
 
     before(async () => {
-        escrowFactory = await EscrowFactory.deployed();
+        escrowFactory = await EscrowFactoryWithERC20.deployed();
         escrowLibrary = await EscrowLibrary.at(await escrowFactory.escrowLibrary());
     });
 

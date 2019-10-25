@@ -10,7 +10,7 @@ const EthEscrow = artifacts.require("EthEscrow");
 import { EscrowFactoryInstance, EscrowLibraryInstance, EthEscrowInstance } from '../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
-import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK } from './common';
+import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK, GAS_LIMIT_FACTORY_DEPLOY } from './common';
 
 contract('EthEscrow', async (accounts) => {
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
@@ -21,7 +21,7 @@ contract('EthEscrow', async (accounts) => {
     var escrowLibrary: EscrowLibraryInstance;
 
     before(async () => {
-        escrowFactory = await EscrowFactory.deployed();
+        escrowFactory = await EscrowFactory.new({ gas: GAS_LIMIT_FACTORY_DEPLOY });
         escrowLibrary = await EscrowLibrary.at(await escrowFactory.escrowLibrary());
     });
 

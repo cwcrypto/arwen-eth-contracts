@@ -6,7 +6,7 @@ const web3 = new Web3('http://localhost:9545');
 const EscrowFactory = artifacts.require("EscrowFactory");
 const EscrowFactoryWithERC20 = artifacts.require("EscrowFactoryWithERC20");
 
-import { GasMeter } from './common';
+import { GasMeter, GAS_LIMIT_FACTORY_DEPLOY } from './common';
 
 contract('Escrow Factory', async (accounts) => {
     var gasMeter: GasMeter;
@@ -22,8 +22,7 @@ contract('Escrow Factory', async (accounts) => {
     it("Deploy a new ETH contract factory", async() => {
 
         // Override gas since deploying factory takes more than default gas limit and block limit
-        var factory = await EscrowFactory.new({ gas: 8000000 });
-
+        var factory = await EscrowFactory.new({ gas: GAS_LIMIT_FACTORY_DEPLOY });
         var txReceipt = await web3.eth.getTransactionReceipt(factory.transactionHash);
         gasMeter.TrackGasUsage("Create new factory", txReceipt);
     });
@@ -31,8 +30,7 @@ contract('Escrow Factory', async (accounts) => {
     it("Deploy a new contract factory with ERC20", async() => {
 
         // Override gas since deploying factory takes more than default gas limit and block limit
-        var factory = await EscrowFactoryWithERC20.new({ gas: 8000000 });
-
+        var factory = await EscrowFactoryWithERC20.new({ gas: GAS_LIMIT_FACTORY_DEPLOY });
         var txReceipt = await web3.eth.getTransactionReceipt(factory.transactionHash);
         gasMeter.TrackGasUsage("Create new factory", txReceipt);
     });

@@ -11,7 +11,7 @@ const TestToken = artifacts.require("TestToken");
 import { EscrowFactoryWithERC20Instance, EscrowLibraryInstance, Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
-import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK } from './common';
+import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK, GAS_LIMIT_FACTORY_DEPLOY } from './common';
 
 contract('Erc20Escrow', async (accounts) => {
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
@@ -23,7 +23,7 @@ contract('Erc20Escrow', async (accounts) => {
     var escrowLibrary: EscrowLibraryInstance;
 
     before(async () => {
-        escrowFactory = await EscrowFactoryWithERC20.deployed();
+        escrowFactory = await EscrowFactoryWithERC20.new({ gas: GAS_LIMIT_FACTORY_DEPLOY });
         escrowLibrary = await EscrowLibrary.at(await escrowFactory.escrowLibrary());
     });
 

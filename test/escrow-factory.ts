@@ -4,6 +4,7 @@ const web3 = new Web3('http://localhost:9545');
 
 // Import truffle contract abstractions
 const EscrowFactory = artifacts.require("EscrowFactory");
+const EscrowFactoryWithERC20 = artifacts.require("EscrowFactoryWithERC20");
 
 import { GasMeter } from './common';
 
@@ -18,10 +19,19 @@ contract('Escrow Factory', async (accounts) => {
         gasMeter.printAggregateGasUsage(false);
     });
 
-    it("Deploy a new contract factory", async() => {
+    it("Deploy a new ETH contract factory", async() => {
 
         // Override gas since deploying factory takes more than default gas limit and block limit
         var factory = await EscrowFactory.new({ gas: 8000000 });
+
+        var txReceipt = await web3.eth.getTransactionReceipt(factory.transactionHash);
+        gasMeter.TrackGasUsage("Create new factory", txReceipt);
+    });
+
+    it("Deploy a new contract factory with ERC20", async() => {
+
+        // Override gas since deploying factory takes more than default gas limit and block limit
+        var factory = await EscrowFactoryWithERC20.new({ gas: 8000000 });
 
         var txReceipt = await web3.eth.getTransactionReceipt(factory.transactionHash);
         gasMeter.TrackGasUsage("Create new factory", txReceipt);

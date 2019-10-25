@@ -70,6 +70,14 @@ contract EscrowFactory is Ownable {
         emit EscrowCreated(escrowParamsHash, address(escrow));
     }
 
+    function selfDestruct() public onlyOwner {
+        selfdestruct(msg.sender);
+    }
+}
+
+
+contract EscrowFactoryWithERC20 is EscrowFactory {
+
     function createErc20Escrow(
         address tknAddr,
         uint escrowAmount,
@@ -115,9 +123,5 @@ contract EscrowFactory is Ownable {
         );
 
         emit EscrowCreated(escrowParamsHash, address(escrow));
-    }
-
-    function selfDestruct() public onlyOwner {
-        selfdestruct(msg.sender);
     }
 }

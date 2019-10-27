@@ -66,7 +66,7 @@ contract EscrowLibrary {
     event PuzzlePosted(address indexed escrow, bytes32 puzzleSighash);
     event Preimage(address indexed escrow, bytes32 preimage, bytes32 puzzleSighash);
     event EscrowClosed(address indexed escrow, EscrowCloseReason reason, bytes32 closingSighash);
-    event FundsTransferred(address indexed escrow, address reserveAddress, bool success);
+    event FundsTransferred(address indexed escrow, address reserveAddress);
 
     struct EscrowParams {
         // The amount expected to be funded by the escrower to open the payment channel
@@ -402,10 +402,10 @@ contract EscrowLibrary {
         EscrowParams storage escrowParams = escrows[escrowAddress];
 
         if(escrower) {
-            require(escrowParams.escrowerBalance > 0);
+            require(escrowParams.escrowerBalance > 0, "escrower balance is 0");
             sendEscrower(escrowAddress, escrowParams);
         } else {
-            require(escrowParams.payeeBalance > 0);
+            require(escrowParams.payeeBalance > 0, "payee balance is 0");
             sendPayee(escrowAddress, escrowParams);
         }
     }
@@ -413,21 +413,21 @@ contract EscrowLibrary {
     function sendEscrower(address escrowAddress, EscrowParams storage escrowParams) internal {
         Escrow escrow = Escrow(escrowAddress);
 
-        bool success = escrow.send(escrowParams.escrowerReserve, escrowParams.escrowerBalance);
-        if(success) {
-            escrowParams.escrowerBalance = 0;
-        }
-        emit FundsTransferred(escrowAddress, escrowParams.escrowerReserve, success);
+        uint amountToSend = escrowParams.escrowerBalance;
+        escrowParams.escrowerBalance = 0;
+        require(escrow.send(escrowParams.escrowerReserve, amountToSend), "escrower send failure");
+
+        emit FundsTransferred(escrowAddress, escrowParams.escrowerReserve);
     }
 
     function sendPayee(address escrowAddress, EscrowParams storage escrowParams) internal {
         Escrow escrow = Escrow(escrowAddress);
 
-        bool success = escrow.send(escrowParams.payeeReserve, escrowParams.payeeBalance);
-        if(success) {
-            escrowParams.payeeBalance = 0;
-        }
-        emit FundsTransferred(escrowAddress, escrowParams.payeeReserve, success);
+        uint amountToSend = escrowParams.payeeBalance;
+        escrowParams.payeeBalance = 0;
+        require(escrow.send(escrowParams.payeeReserve, amountToSend), "payee send failure");
+
+        emit FundsTransferred(escrowAddress, escrowParams.payeeReserve);
     }
 
     /**

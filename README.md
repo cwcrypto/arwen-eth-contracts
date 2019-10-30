@@ -36,8 +36,6 @@ npm test
 
 ## [Solidity](https://solidity.readthedocs.io/en/develop/index.html)
 
-Solidity is a language for programming ethereum smart contracts. An ethereum smart contract is simply a program with some associated state that is stored on the ethereum blockchain. The program's code is intialized when the contract is created and is immutable. The smart contract's state is mutable but only through the contract's code. The program is executed on the Etherem Virtual Machine (EVM) which is specified as part of the ethereum blockchain's consensus rules. Solidity is a high level language that compiles down to EVM byte-code.
-
 The official solidity documentation is a great resource for both learning solidity from scratch by example and as a comprehensive reference on all the language's features.
 
 ### Solidity Style Guide
@@ -86,18 +84,6 @@ Truffle can be configured using the config file in the root directory: `truffle-
 - `networks`: This configuration tells truffle which RPC server to connect to when deploying contracts or sending transactions to contracts. It can be set to a local development blockchain for testing but also configured to talk to an ethereum node over RPC on a private network, testnet, or mainnet.
 - `solc`: Allows you to specify a specific solc compiler version that will be used for `truffle compile` which will be automatically fetched if you change the version. See [here](https://truffleframework.com/docs/truffle/reference/configuration#compiler-configuration) for more details. To list all available solc versions from solc-bin `truffle compile --list`.
 
-#### Common Truffle Commands
-
-`truffle compile`: This will compile all .sol files within the `contracts` directory. Outputs build artifacts in `build` directory.
-
-`truffle test`: Runs all unit test files in the `test` directory. See [testing](#testing) section.
-
-`truffle develop`: This will under-the-hood launch `ganache` on port 9545. In addition this will open an interactive console that can be used to interact with the development blockchain and any deployed contracts. [See here for more details](https://truffleframework.com/docs/truffle/getting-started/using-truffle-develop-and-the-console).
-
-`truffle migrate`: Runs the migration scripts found in the `migrations` directory. These can be used for managing deployment of many dependent contracts, deploying contracts to different environments (development, private, testnet, mainnet). Currently the migration folder only has the boiler-plate migration scripts `truffle migrate` uses internally.
-
-`truffle debug`: Allows stepping through evm code execution of any transaction. You need to provide the txid of the transaction which you can get from the `ganache-cli` logs or by printing it to the console from the typescript tests.
-
 ## Imported Solidity Libraries
 
 Currently we import contracts from [open-zepplin](https://github.com/OpenZeppelin/openzeppelin-solidity). This is an open source repository of well audited smart contracts to use/inherit from in dependent contracts. Contracts can be directly imported by truffle when you specify the path from the openzepplin-solidity node module:
@@ -110,15 +96,9 @@ See [here](https://truffleframework.com/docs/truffle/getting-started/package-man
 
 ## Solc
 
-Solc is the solidity compiler. It is possible install and run the solc compiler separately [see here](https://solidity.readthedocs.io/en/develop/installing-solidity.html). This version of the solc compiler has many additional features including being able to show gas estimates for your contracts in order to benchmark and tune your solidity contracts for gas usage.
+### Version
 
-To generate gas estimates for a contract use the `solc --gas <contract.sol>`. However if any external solidity imports are made in your file that are not in the current directory you have to setup the import paths that the solc uses. For example importing the openzepplin-solidity contracts requires mapping the `openzepplin-solidity` import path to its location in node_modules.
-
-```
-solc --gas openzeppelin-solidity/=<full-path-to-cwc-eth-contracts>/node_modules/openzeppelin-solidity/ contracts/Escrow.sol
-```
-
-However there are some limitations with the gas estimator that may cause it to show infinite estimates for some functions see this [post](https://ethereum.stackexchange.com/a/29637) for details.
+The current version of solidity we are using is `0.5.9`. Note this is the latest major version `0.5` of solidty with additional safety features that also introduced some [breaking changes](https://solidity.readthedocs.io/en/develop/050-breaking-changes.html) compared to `0.4`.
 
 ### Solc with truffle
 
@@ -126,11 +106,7 @@ It is included as a dependency of the [truffle](#Truffle) and the version used b
 
 ### Solc with vscode-solidity
 
-The version of the compiler used by the vscode extension is currently overriden to be `0.4.25` by also including the solc npm module at that version. See [here](https://github.com/juanfranblanco/vscode-solidity#using-a-different-version-of-the-solidity-compiler) for more details.
-
-### Version
-
-The current version of solidity we are using is `0.5.9`. Note this is the latest major version `0.5` of solidty with additional safety features that also introduced some [breaking changes](https://solidity.readthedocs.io/en/develop/050-breaking-changes.html) compared to `0.4`.
+The version of the compiler used by the vscode extension is currently overriden to be `0.5.9` by including the solc npm module at that version. See [here](https://github.com/juanfranblanco/vscode-solidity#using-a-different-version-of-the-solidity-compiler) for more details.
 
 ## NPM scripts
 
@@ -143,37 +119,15 @@ These are located in the `package.json` file.
 ## Project File Structure
 
 - `contracts`: All solidity (.sol) source files.
-- `migrations`: Migration scripts used by `truffle migrate` command.
 - `test`: Tests for the contracts written in typescript and utilizing web3.js and truffle's contract abstractions. See [test section](#testing) for more details.
-
-### Auto-generated (gitignored)
-
-- `node_modules`: node dependencies (from `package.json`). Run `npm install` to make sure all dependencies are installed.
-- `build`: This directory is created to store build artifacts once you run `truffle compile`. It contains the ABIs of the contracts as well as metadata used by truffle's migration/deployment features.
-- `types`: This directory is created by Typechain and contains auto-generated typescript definitions for compiled contracts.
 
 ## Testing
 
 Contract unit tests can be written in typescript using the `mocha` test runner and `chai` assertion library. The Truffle testing environment leverages truffle's [contract abstractions](https://github.com/trufflesuite/truffle-contract) to deploy/interact with smart contracts on the blockchain.
 
-### Web3.js
-
-The [web3.js@1.0](https://web3js.readthedocs.io/en/1.0/index.html) module contains many useful ethereum utilities for:
-
-- Querying balances of ethereum addresses
-- ABI encoding data
-- Crypto utils for hashing, generating keys, signing data
-
 ### [Typechain](https://github.com/ethereum-ts/TypeChain)
 
 This module automatically generates typescript definintion files for your compiled smart contracts. It can be configured to target truffle's contract build artifacts. This project was based on the boiler-plate truffle-typechain [sample project](https://github.com/ethereum-ts/truffle-typechain-example).
-
-### Typescript Modules
-
-- @types/mocha: Types for mocha testing framework
-- @types/node: Types for node.js standard library
-- @types/bignumber.js: Types for js big number library which is used by web3.js
-- truffle-typings: Types for truffle utilities
 
 ### Other Testing Resources
 

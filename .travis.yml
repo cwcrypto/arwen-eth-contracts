@@ -5,6 +5,10 @@ node_js:
 sudo:
   required
 
+branches:
+  only:
+  - master
+
 install:
   - npm install -g solhint
   - npm install -g truffle

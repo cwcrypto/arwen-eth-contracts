@@ -26,8 +26,8 @@ contract EscrowLibrary {
     * transition to the Open state once it has been funded with required escrow
     * amount and openEscrow method is called.
     * @param Open From this state the escrow can transition to Closed state
-    * (self-destructed) via the cashout or refund methods or it can
-    * transition to PuzzlePosted state via the postPuzzle method.
+    * via the cashout or refund methods or it can transition to PuzzlePosted state
+    * via the postPuzzle method.
     * @param PuzzlePosted From this state the escrow can only transition to
     * closed via the solve or puzzleRefund methods
     * @param Closed The final sink state of the escrow

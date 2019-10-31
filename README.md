@@ -1,8 +1,8 @@
 # Arwen Ethereum Contracts
 
-[![Build Status](https://travis-ci.com/cwcrypto/cwc-eth-contracts.svg?token=L8rnhKd3GNgz5XsSygnZ&branch=master)](https://travis-ci.com/cwcrypto/cwc-eth-contracts)
+[![Build Status](https://travis-ci.com/cwcrypto/arwen-eth-contracts.svg?token=L8rnhKd3GNgz5XsSygnZ&branch=master)](https://travis-ci.com/cwcrypto/arwen-eth-contracts)
 
-The [Arwen](https://arwen.io/) [protocol](https://arwen.io/whitepaper.pdf) provides secure, decentralized settlement for crypto exchanges and OTC trading between BTC, BCH, LTC and ETH using escrows. These smart contracts enable non-custodial trading with Ethereum. In this repo we also have a smart contract for ERC-20, however [support for ERC-20 has been disabled](https://github.com/cwcrypto/cwc-eth-contracts/commit/7efbabcaee6e75d73f0039c9ea7a06ebad7d262a#diff-7ccd12707c298ee4b06ba765a26034c1) and we have no current plans to support ERC-20.
+The [Arwen](https://arwen.io/) [protocol](https://arwen.io/whitepaper.pdf) provides secure, decentralized settlement for crypto exchanges and OTC trading between BTC, BCH, LTC and ETH using escrows. These smart contracts enable non-custodial trading with Ethereum. In this repo we also have a smart contract for ERC-20, however [support for ERC-20 has been disabled](https://github.com/cwcrypto/arwen-eth-contracts/commit/7efbabcaee6e75d73f0039c9ea7a06ebad7d262a#diff-7ccd12707c298ee4b06ba765a26034c1) and we have no current plans to support ERC-20.
 
 These smart contracts are written in solidity and can be found in the [contracts/](contracts/) directory. Tests for these smart contracts can be found [test/](test/) and instructions for these tests can be found below in this README.
 

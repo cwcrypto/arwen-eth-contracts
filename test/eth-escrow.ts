@@ -256,4 +256,18 @@ contract('EthEscrow', async (accounts) => {
             assert.equal(expectedError, error.message);
         }
     });
+
+    it("Test withdraw before escrow closed", async () => {
+        var expectedError = "Returned error: VM Exception while processing transaction: revert Withdraw attempted before escrow is closed -- Reason given: Withdraw attempted before escrow is closed."
+        
+        var time = getCurrentTimeUnixEpoch()
+        var escrow = await setupEthEscrow(1000, time);
+
+        try
+        {
+            await escrowLibrary.withdraw(escrow.address, false)
+        } catch (error) {
+            assert.equal(expectedError, error.message);
+        }
+    });
 });

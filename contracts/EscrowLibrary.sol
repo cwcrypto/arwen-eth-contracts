@@ -401,6 +401,8 @@ contract EscrowLibrary {
     function withdraw(address escrowAddress, bool escrower) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
 
+        require(escrowParams.escrowState == EscrowState.Closed, "Withdraw attempted before escrow is closed");
+
         if(escrower) {
             require(escrowParams.escrowerBalance > 0, "escrower balance is 0");
             sendEscrower(escrowAddress, escrowParams);

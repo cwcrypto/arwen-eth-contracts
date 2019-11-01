@@ -1,6 +1,7 @@
 pragma solidity ^0.5.0;
 
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
+import "./IEscrow.sol";
 import "./EscrowLibrary.sol";
 
 
@@ -12,7 +13,7 @@ import "./EscrowLibrary.sol";
 * for either ETH or ERC20 tokens in derived contracts. The `send` method should only
 * callable by the library contract that controls this escrow
 */
-contract Escrow {
+contract Escrow is IEscrow {
 
     address public escrowLibrary;
 
@@ -24,9 +25,6 @@ contract Escrow {
     constructor(address _escrowLibrary) internal {
         escrowLibrary = _escrowLibrary;
     }
-
-    function balance() public returns (uint);
-    function send(address payable addr, uint amt) public returns (bool);
 }
 
 

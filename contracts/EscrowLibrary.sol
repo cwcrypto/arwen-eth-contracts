@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-import "./Escrow.sol";
+import "./IEscrow.sol";
 
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
@@ -178,7 +178,7 @@ contract EscrowLibrary {
         require(msg.sender == escrowAddress, "Only callable by the Escrow contract");
         require(escrowParams.escrowState == EscrowState.Unfunded, "Escrow must be in state Unfunded");
 
-        emit EscrowFunded(escrowAddress, Escrow(escrowAddress).balance());
+        emit EscrowFunded(escrowAddress, IEscrow(escrowAddress).balance());
     }
 
     /**
@@ -190,7 +190,7 @@ contract EscrowLibrary {
         EscrowParams storage escrowParams = escrows[escrowAddress];
         require(escrowParams.escrowState == EscrowState.Unfunded, "Escrow must be in state Unfunded");
         
-        Escrow escrow = Escrow(escrowAddress);
+        IEscrow escrow = IEscrow(escrowAddress);
         uint escrowAmount = escrowParams.escrowAmount;
         uint escrowBalance = escrow.balance();
 
@@ -296,7 +296,7 @@ contract EscrowLibrary {
         require(escrowParams.escrowState == EscrowState.Open, "Escrow must be in state Open");
         require(now >= escrowParams.escrowTimelock + FORCE_REFUND_TIME, "Escrow force refund timelock not reached");
 
-        escrowParams.escrowerBalance = Escrow(escrowAddress).balance();
+        escrowParams.escrowerBalance = IEscrow(escrowAddress).balance();
         escrowParams.escrowState = EscrowState.Closed;
 
         if(escrowParams.escrowerBalance > 0) sendEscrower(escrowAddress, escrowParams);
@@ -413,7 +413,7 @@ contract EscrowLibrary {
     }
 
     function sendEscrower(address escrowAddress, EscrowParams storage escrowParams) internal {
-        Escrow escrow = Escrow(escrowAddress);
+        IEscrow escrow = IEscrow(escrowAddress);
 
         uint amountToSend = escrowParams.escrowerBalance;
         escrowParams.escrowerBalance = 0;
@@ -423,7 +423,7 @@ contract EscrowLibrary {
     }
 
     function sendPayee(address escrowAddress, EscrowParams storage escrowParams) internal {
-        Escrow escrow = Escrow(escrowAddress);
+        IEscrow escrow = IEscrow(escrowAddress);
 
         uint amountToSend = escrowParams.payeeBalance;
         escrowParams.payeeBalance = 0;

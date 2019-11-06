@@ -9,7 +9,7 @@
   "dependencies": {
     "lodash": "^4.17.15",
     "openzeppelin-solidity": "2.3.0",
-    "solc": "^0.5.11",
+    "solc": "^0.5.12",
     "web3": "^1.2.1"
   },
   "devDependencies": {

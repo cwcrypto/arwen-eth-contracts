@@ -6,7 +6,7 @@ const web3 = new Web3('http://localhost:9545');
 const EscrowFactory = artifacts.require("EscrowFactory");
 const EscrowFactoryWithERC20 = artifacts.require("EscrowFactoryWithERC20");
 
-import { GasMeter, GAS_LIMIT_FACTORY_DEPLOY } from './common';
+import { GasMeter, GAS_LIMIT_FACTORY_DEPLOY, computeCreate2Address } from './common';
 
 contract('Escrow Factory', async (accounts) => {
     var gasMeter: GasMeter;

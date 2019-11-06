@@ -4,6 +4,8 @@ import { TransactionReceipt } from "web3/types";
 import * as encodeUtils from "./web3js-includes/Encodepacked";
 import BigNumber from "bignumber.js";
 
+import { EscrowLibraryInstance } from "../types/truffle-contracts";
+
 const crypto = require('crypto');
 
 // For up-to-date gas prices see: https://ethgasstation.info/
@@ -59,11 +61,63 @@ export function getCurrentTimeUnixEpoch() {
     return Math.floor(new Date().valueOf() / 1000)
 }
 
+export function getParamsHash(escrowParams: EscrowParams, factoryAddress: string, tknAddr?: string) {
+
+    var typedParams: { t: string, v: any }[] = [
+        {t: "address", v: factoryAddress}
+    ];
+
+    if(tknAddr !== undefined) {
+        typedParams.push({ t: "address", v: tknAddr});
+    }
+
+    typedParams.push(
+        {t: "uint256", v: escrowParams.escrowAmount},
+        {t: "uint256", v: escrowParams.escrowTimelock},
+        {t: "address", v: escrowParams.escrowerReserve},
+        {t: "address", v: escrowParams.escrowerTrade},
+        {t: "address", v: escrowParams.escrowerRefund},
+        {t: "address", v: escrowParams.payeeReserve},
+        {t: "address", v: escrowParams.payeeTrade}
+    );
+
+    return web3.utils.sha3(encodeUtils.encodePacked(...typedParams));
+}
+
+export async function queryEscrowParams(escrowLibrary: EscrowLibraryInstance, escrowAddress: string): Promise<EscrowParams> {
+    return await escrowLibrary.escrows(escrowAddress) as any;
+}
+
+export function createNewEscrowParams(TSS: TestSigningService, escrowAmount: number, escrowTimelock: number) : EscrowParams {
+    return {
+        escrowAmount: new BigNumber(escrowAmount),
+        escrowTimelock: new BigNumber(escrowTimelock),
+        escrowerReserve: TSS.eReserve.address,
+        escrowerTrade: TSS.eTrade.address,
+        escrowerRefund: TSS.eRefund.address,
+        payeeReserve:  TSS.pReserve.address,
+        payeeTrade: TSS.pTrade.address,
+
+        escrowState : new BigNumber(EscrowState.None),
+        payeeBalance: new BigNumber(0),
+        escrowerBalance: new BigNumber(0)
+    };
+}
+
 // preimage is a hex encoded string with '0x' prefix
 export function hashPreimage(preimage: string) : string {
     let hasher = crypto.createHash('sha256');
     let digest = hasher.update(preimage.slice(2), 'hex').digest('hex');
     return `0x${digest}`;
+}
+
+export function computeCreate2Address (saltHex: string, bytecode: string, deployer: string) {
+    return web3.utils.toChecksumAddress(`0x${web3.utils.sha3(`0x${[
+        'ff',
+        deployer,
+        saltHex,
+        web3.utils.soliditySha3(bytecode),
+    ].map(x => x.replace(/0x/, '')).join('')}`).slice(-40)}`);
 }
 
 interface DuoSigned { eSig: MessageSignature, pSig: MessageSignature };

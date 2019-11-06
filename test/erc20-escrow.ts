@@ -8,10 +8,12 @@ const EscrowLibrary = artifacts.require("EscrowLibrary");
 const Erc20Escrow = artifacts.require("Erc20Escrow");
 const TestToken = artifacts.require("TestToken");
 
+const Erc20EscrowBytecode = (Erc20Escrow as any).bytecode;
+
 import { EscrowFactoryWithERC20Instance, EscrowLibraryInstance, Erc20EscrowInstance, TestTokenInstance } from './../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
-import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK, GAS_LIMIT_FACTORY_DEPLOY } from './common';
+import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK, GAS_LIMIT_FACTORY_DEPLOY, createNewEscrowParams, computeCreate2Address, getParamsHash } from './common';
 
 contract('Erc20Escrow', async (accounts) => {
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
@@ -47,14 +49,18 @@ contract('Erc20Escrow', async (accounts) => {
      * @param escrowTimelcok The refund timelock of this escrow
      */
     async function setupERC20Escrow(escrowAmount: number, escrowTimelock: number) : Promise<Erc20EscrowInstance> {
-        var escrow = await deployERC20EscrowFromFactory(testToken.address, escrowAmount, escrowTimelock);
+        const args = web3.eth.abi.encodeParameters(['address', 'address'], [escrowLibrary.address, testToken.address]).slice(2);
+        const erc20EscrowBytecodeWithConstructorArgs = `${Erc20EscrowBytecode}${args}`;
 
-        // Approve escrow contract to transfer the tokens on behalf of mainAccount
-        var txResult = await testToken.transfer(escrow.address, escrowAmount, {from: mainAccount});
-        gasMeter.TrackGasUsage("ERC20 token approve", txResult.receipt);
+        var escrowParams = createNewEscrowParams(TSS, escrowAmount, escrowTimelock);
+        var escrowAddress = computeCreate2Address(getParamsHash(escrowParams, escrowFactory.address, testToken.address), erc20EscrowBytecodeWithConstructorArgs, escrowFactory.address);
 
-        txResult = await escrowLibrary.openEscrow(escrow.address);
-        gasMeter.TrackGasUsage("fundEscrow", txResult.receipt);
+        // Transfer the tokens on behalf of mainAccount to the escrow address
+        var txResult = await testToken.transfer(escrowAddress, escrowAmount, {from: mainAccount});
+        gasMeter.TrackGasUsage("ERC20 token transfer", txResult.receipt);
+
+        var escrow = await deployERC20EscrowFromFactory(testToken.address, escrowParams);
+        assert.equal(escrowAddress, escrow.address);
 
         return escrow;
     }
@@ -63,16 +69,16 @@ contract('Erc20Escrow', async (accounts) => {
         return (await escrowLibrary.escrows(escrowAddress)) as any;
     }
 
-    async function deployERC20EscrowFromFactory(tknAddr: string, escrowAmount: number, escrowTimelock: number) : Promise<Erc20EscrowInstance> {
+    async function deployERC20EscrowFromFactory(tknAddr: string, escrowParams: EscrowParams) : Promise<Erc20EscrowInstance> {
         var txResult = await escrowFactory.createErc20Escrow(
             tknAddr,
-            escrowAmount,
-            escrowTimelock,
-            TSS.eReserve.address,
-            TSS.eTrade.address,
-            TSS.eRefund.address,
-            TSS.pReserve.address,
-            TSS.pTrade.address,
+            escrowParams.escrowAmount,
+            escrowParams.escrowTimelock,
+            escrowParams.escrowerReserve,
+            escrowParams.escrowerTrade,
+            escrowParams.escrowerRefund,
+            escrowParams.payeeReserve,
+            escrowParams.payeeTrade,
             { from: mainAccount }
         );
         gasMeter.TrackGasUsage("Factory createEthEscrow", txResult.receipt);

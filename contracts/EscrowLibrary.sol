@@ -61,8 +61,6 @@ contract EscrowLibrary {
         ForceRefund
     }
 
-    event EscrowOpened(address indexed escrow);
-    event EscrowFunded(address indexed escrow, uint amountFunded);
     event PuzzlePosted(address indexed escrow, bytes32 puzzleSighash);
     event Preimage(address indexed escrow, bytes32 preimage, bytes32 puzzleSighash);
     event EscrowClosed(address indexed escrow, EscrowCloseReason reason, bytes32 closingSighash);
@@ -135,7 +133,7 @@ contract EscrowLibrary {
     * escrow at the provided address
     */
     function newEscrow(
-        address escrow,
+        address escrowAddress,
         uint escrowAmount,
         uint timelock,
         address payable escrowerReserve,
@@ -147,13 +145,13 @@ contract EscrowLibrary {
         public
         onlyFactory
     {
-        require(escrows[escrow].escrowState == EscrowState.None, "Escrow already exists");
+        require(escrows[escrowAddress].escrowState == EscrowState.None, "Escrow already exists");
         require(escrowAmount > 0, "Escrow amount too low");
 
         uint escrowerStartingBalance = 0;
         uint payeeStartingBalance = 0;
 
-        escrows[escrow] = EscrowParams(
+        escrows[escrowAddress] = EscrowParams(
             escrowAmount,
             timelock,
             escrowerReserve,
@@ -165,40 +163,16 @@ contract EscrowLibrary {
             escrowerStartingBalance,
             payeeStartingBalance
         );
-    }
 
-    /**
-    * Emits an event with the current balance of the escrow
-    * @dev Can be used by the EthEscrow contract's payable fallback to
-    * automatically emit an event when an escrow is funded
-    */
-    function checkFunded(address escrowAddress) public {
         EscrowParams storage escrowParams = escrows[escrowAddress];
 
-        require(msg.sender == escrowAddress, "Only callable by the Escrow contract");
-        require(escrowParams.escrowState == EscrowState.Unfunded, "Escrow must be in state Unfunded");
-
-        emit EscrowFunded(escrowAddress, IEscrow(escrowAddress).balance());
-    }
-
-    /**
-    * Moves the escrow to the open state if it has been funded
-    * @dev Will send back any additional collateral above the `escrowAmount`
-    * back to the escrower before opening
-    */
-    function openEscrow(address escrowAddress) public {
-        EscrowParams storage escrowParams = escrows[escrowAddress];
-        require(escrowParams.escrowState == EscrowState.Unfunded, "Escrow must be in state Unfunded");
-        
         IEscrow escrow = IEscrow(escrowAddress);
-        uint escrowAmount = escrowParams.escrowAmount;
         uint escrowBalance = escrow.balance();
 
         // Check the escrow is funded for at least escrowAmount
         require(escrowBalance >= escrowAmount, "Escrow not funded");
 
         escrowParams.escrowState = EscrowState.Open;
-        emit EscrowOpened(escrowAddress);
 
         // If over-funded return any excess funds back to the escrower
         if(escrowBalance > escrowAmount) {

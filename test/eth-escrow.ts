@@ -7,10 +7,12 @@ const EscrowFactory = artifacts.require("EscrowFactory");
 const EscrowLibrary = artifacts.require("EscrowLibrary");
 const EthEscrow = artifacts.require("EthEscrow");
 
+const EthEscrowBytecode = (EthEscrow as any).bytecode;
+
 import { EscrowFactoryInstance, EscrowLibraryInstance, EthEscrowInstance } from '../types/truffle-contracts';
 import { fail } from 'assert';
 import { BigNumber } from "bignumber.js";
-import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK, GAS_LIMIT_FACTORY_DEPLOY } from './common';
+import { TestSigningService, GasMeter, getCurrentTimeUnixEpoch, EscrowState, hashPreimage, EscrowParams, FORCE_REFUND_TIMELOCK, GAS_LIMIT_FACTORY_DEPLOY, computeCreate2Address, getParamsHash, createNewEscrowParams, queryEscrowParams } from './common';
 
 contract('EthEscrow', async (accounts) => {
     var mainAccount = web3.utils.toChecksumAddress(accounts[0]);
@@ -43,37 +45,35 @@ contract('EthEscrow', async (accounts) => {
      * @param escrowTimelock The refund timelock of this escrow
      */
     async function setupEthEscrow(escrowAmount: number, escrowTimelock: number) : Promise<EthEscrowInstance> {
-        var escrow = await deployEthEscrowFromFactory(escrowAmount, escrowTimelock);
-        
-        // Fund Escrow by sending directly to the contract using the fallback
-        // function. This requires a cast to any until truffle-typings adds
-        // sendTransaction to its type definitions
-        var fundTxReceipt = await (escrow as any).sendTransaction({
+        const args = web3.eth.abi.encodeParameters(['address'], [escrowLibrary.address]).slice(2);
+        const ethEscrowBytecodeWithConstructorArgs = `${EthEscrowBytecode}${args}`;
+
+        var escrowParams = createNewEscrowParams(TSS, escrowAmount, escrowTimelock);
+        var escrowAddress = computeCreate2Address(getParamsHash(escrowParams, escrowFactory.address), ethEscrowBytecodeWithConstructorArgs, escrowFactory.address);
+
+        // Fund Escrow by sending directly to the contract
+        var fundTxReceipt = await web3.eth.sendTransaction({
+            to: escrowAddress,
             from: mainAccount, 
             value: escrowAmount,
         });
-        gasMeter.TrackGasUsage("EthEscrow fallback funding", fundTxReceipt.receipt);
-        
-        // Open
-        var openTx = await escrowLibrary.openEscrow(escrow.address);
-        gasMeter.TrackGasUsage("EthEscrow openEscrow", openTx.receipt);
+        gasMeter.TrackGasUsage("EthEscrow fallback funding", fundTxReceipt);
+
+        var escrow = await deployEthEscrowFromFactory(escrowParams);
+        assert.equal(escrowAddress, escrow.address);
         
         return escrow;
     }
 
-    async function getEscrowParams(escrowAddress: string): Promise<EscrowParams> {
-        return await escrowLibrary.escrows(escrowAddress) as any;
-    }
-
-    async function deployEthEscrowFromFactory(escrowAmount: number, escrowTimelock: number) : Promise<EthEscrowInstance> {
+    async function deployEthEscrowFromFactory(escrowParams: EscrowParams) : Promise<EthEscrowInstance> {
         var txResult = await escrowFactory.createEthEscrow(
-            escrowAmount,
-            escrowTimelock,
-            TSS.eReserve.address,
-            TSS.eTrade.address,
-            TSS.eRefund.address,
-            TSS.pReserve.address,
-            TSS.pTrade.address,
+            escrowParams.escrowAmount,
+            escrowParams.escrowTimelock,
+            escrowParams.escrowerReserve,
+            escrowParams.escrowerTrade,
+            escrowParams.escrowerRefund,
+            escrowParams.payeeReserve,
+            escrowParams.payeeTrade,
             { from: mainAccount }
         );
         gasMeter.TrackGasUsage("Factory createEthEscrow", txResult.receipt);
@@ -93,7 +93,7 @@ contract('EthEscrow', async (accounts) => {
         var escrowTimelock = getCurrentTimeUnixEpoch();
         var escrow = await setupEthEscrow(escrowAmount, escrowTimelock);
         
-        var escrowParams = await getEscrowParams(escrow.address);
+        var escrowParams = await queryEscrowParams(escrowLibrary, escrow.address);
         assert.equal(escrowParams.escrowAmount.toNumber(), escrowAmount, "escrow amount");
         assert.equal(escrowParams.escrowTimelock.toNumber(), escrowTimelock, "escrow timelock");
         assert.equal(escrowParams.escrowerRefund, TSS.eRefund.address, "escrower refund address");
@@ -172,7 +172,7 @@ contract('EthEscrow', async (accounts) => {
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
-        var escrowParams = await getEscrowParams(escrow.address);
+        var escrowParams = await queryEscrowParams(escrowLibrary, escrow.address);
         assert.equal(escrowParams.escrowState.toNumber(), EscrowState.PuzzlePosted);
 
         // Refunding the puzzle should fail because we have not yet hit the timelock
@@ -214,7 +214,7 @@ contract('EthEscrow', async (accounts) => {
         gasMeter.TrackGasUsage("postPuzzle", txResult.receipt);
 
         // State assertions after puzzle has been posted
-        var escrowParams = await getEscrowParams(escrow.address);
+        var escrowParams = await queryEscrowParams(escrowLibrary, escrow.address);
         assert.equal(escrowParams.escrowState.toNumber(), EscrowState.PuzzlePosted);
 
         // Refunding the puzzle should succeed and release the tradeAmount back to the escrower 
@@ -239,21 +239,23 @@ contract('EthEscrow', async (accounts) => {
         {
             await setupEthEscrow(0, getCurrentTimeUnixEpoch());            
         } catch (error) {
-            assert.equal(expectedError, error.message);
+            assert.equal(error.message, expectedError);
         }
     });
 
     it("Test revert for duplicated escrow params hash", async () => {
-        var expectedError = "Returned error: VM Exception while processing transaction: revert escrow already exists -- Reason given: escrow already exists."
+        var expectedError = "Returned error: VM Exception while processing transaction: revert"
         
-        var time = getCurrentTimeUnixEpoch()
-        await setupEthEscrow(1000, time);
+        var amount = 1000;
+        var time = getCurrentTimeUnixEpoch();
+        var escrowParams = createNewEscrowParams(TSS, amount, time);
+        var escrow = await setupEthEscrow(amount, time)
 
         try
         {
-            await setupEthEscrow(1000, time);            
+            await deployEthEscrowFromFactory(escrowParams);            
         } catch (error) {
-            assert.equal(expectedError, error.message);
+            assert.equal(error.message, expectedError);
         }
     });
 
@@ -267,7 +269,7 @@ contract('EthEscrow', async (accounts) => {
         {
             await escrowLibrary.withdraw(escrow.address, false)
         } catch (error) {
-            assert.equal(expectedError, error.message);
+            assert.equal(error.message, expectedError);
         }
     });
 });

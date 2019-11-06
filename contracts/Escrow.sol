@@ -33,16 +33,7 @@ contract Escrow is IEscrow {
 */
 contract EthEscrow is Escrow {
 
-    constructor(address escrowLibrary) public Escrow(escrowLibrary) { }
-
-    /**
-    * Payable fallback method that allows the escrow to be funded and triggers
-    * a `checkFunded` call on the library contract to emit an event when the
-    * escrow becomes fully funded
-    */
-    function () external payable {
-       EscrowLibrary(escrowLibrary).checkFunded(address(this));
-    }
+    constructor(address escrowLibrary) public Escrow(escrowLibrary) {}
 
     function send(address payable addr, uint amt) public onlyLibrary returns (bool) {
         return addr.send(amt);

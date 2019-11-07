@@ -31,6 +31,7 @@ docker run ethereum/${SOLC_VERSION} --version
 
 # Compile solditiy source code using solc docker
 declare -a CONTRACTS=(
+    "EscrowFactoryWithERC20.sol"
     "EscrowFactory.sol"
     "Escrow.sol"
     "TestToken.sol"

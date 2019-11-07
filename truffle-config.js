@@ -30,6 +30,8 @@
 
 require("ts-node/register");
 
+var solc_output_dir="build/solc-contracts-bin";
+
 module.exports = {
   test_file_extension_regexp: /.*\.ts$/,
   /**
@@ -92,15 +94,30 @@ module.exports = {
   // Configure your compilers
   compilers: {
     solc: {
-      version: "0.5.12",    // Fetch exact version from solc-bin (default: truffle's version)
-      // docker: true,        // Use "0.5.1" you've installed locally with docker (default: false)
-      // settings: {          // See the solidity docs for advice about optimization and evmVersion
-      //  optimizer: {
-      //    enabled: false,
-      //    runs: 200
-      //  },
-      //  evmVersion: "byzantium"
-      // }
+      version: "0.5.12",
+    },
+    external: {
+      command: "./compile-contracts.sh",
+      targets: [
+        {
+          properties: {
+            contractName: "EthEscrow",
+          },
+          fileProperties: {
+            abi: `./${solc_output_dir}/EthEscrow.abi`,
+            bytecode: `./${solc_output_dir}/EthEscrow.bytecode`,
+          },
+        },
+        {
+          properties: {
+            contractName: "Erc20Escrow",
+          },
+          fileProperties: {
+            abi: `./${solc_output_dir}/Erc20Escrow.abi`,
+            bytecode: `./${solc_output_dir}/Erc20Escrow.bytecode`,
+          }
+        }
+      ]
     }
   }
 }

@@ -23,7 +23,7 @@
     "typescript": "^3.6.2"
   },
   "scripts": {
-    "test": "truffle test",
+    "test": "truffle compile && truffle test",
     "build": "npm run clean && truffle compile && npm run solhint && npm run typechain-gen",
     "typechain-gen": "typechain --target truffle './build/**/*.json'",
     "solhint": "solhint -c .solhint.json contracts/*",

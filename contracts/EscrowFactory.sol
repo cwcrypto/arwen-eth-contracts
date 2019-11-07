@@ -76,8 +76,4 @@ contract EscrowFactory is Ownable {
         }
         return addr;
     }
-
-    function selfDestruct() public onlyOwner {
-        selfdestruct(msg.sender);
-    }
 }

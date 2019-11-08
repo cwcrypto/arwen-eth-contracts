@@ -47,7 +47,8 @@ contract EscrowFactory is Ownable {
             payeeTrade
         ));
 
-        bytes memory bytecode = abi.encodePacked(type(EthEscrow).creationCode, abi.encode(address(escrowLibrary)));
+        bytes memory constructorArgs = abi.encode(address(escrowLibrary));
+        bytes memory bytecode = abi.encodePacked(type(EthEscrow).creationCode, constructorArgs);
         address escrowAddress = createEscrow(bytecode, escrowParamsHash);
 
         escrowLibrary.newEscrow(

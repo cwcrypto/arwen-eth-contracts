@@ -30,7 +30,8 @@ contract EscrowFactoryWithERC20 is EscrowFactory {
             payeeTrade
         ));
 
-        bytes memory bytecode = abi.encodePacked(type(Erc20Escrow).creationCode, abi.encode(address(escrowLibrary), tknAddr));
+        bytes memory constructorArgs = abi.encode(address(escrowLibrary), tknAddr);
+        bytes memory bytecode = abi.encodePacked(type(Erc20Escrow).creationCode, constructorArgs);
         address escrowAddress = createEscrow(bytecode, escrowParamsHash);
 
         escrowLibrary.newEscrow(

@@ -96,28 +96,5 @@ module.exports = {
     solc: {
       version: "0.5.12",
     },
-    external: {
-      command: "./compile-contracts.sh",
-      targets: [
-        {
-          properties: {
-            contractName: "EthEscrow",
-          },
-          fileProperties: {
-            abi: `./${solc_output_dir}/EthEscrow.abi`,
-            bytecode: `./${solc_output_dir}/EthEscrow.bytecode`,
-          },
-        },
-        {
-          properties: {
-            contractName: "Erc20Escrow",
-          },
-          fileProperties: {
-            abi: `./${solc_output_dir}/Erc20Escrow.abi`,
-            bytecode: `./${solc_output_dir}/Erc20Escrow.bytecode`,
-          }
-        }
-      ]
-    }
   }
 }

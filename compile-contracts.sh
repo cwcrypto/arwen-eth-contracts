@@ -46,8 +46,3 @@ done
 
 echo "Compiling ${CONTRACTS} and writing abi/bin files to ${OUTPUT_DIR}"
 docker run -v $(pwd):$MOUNT_DIR ethereum/$SOLC_VERSION "openzeppelin-solidity/=$MOUNT_DIR/node_modules/openzeppelin-solidity/" --abi --bin --overwrite $FULL_PATH_CONTRACTS -o $MOUNT_DIR/$OUTPUT_DIR
-
-# output .bytecode file with correct format for truffle to be able to build json artifacts
-# adds quotes and 0x prefix to the bytecode
-sed -e 's/\(.*\)/\"0x\1\"/g' ${OUTPUT_DIR}/EthEscrow.bin > ${OUTPUT_DIR}/EthEscrow.bytecode
-sed -e 's/\(.*\)/\"0x\1\"/g' ${OUTPUT_DIR}/Erc20Escrow.bin > ${OUTPUT_DIR}/Erc20Escrow.bytecode

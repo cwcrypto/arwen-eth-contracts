@@ -7,7 +7,7 @@
     "test": "test"
   },
   "dependencies": {
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.21",
     "openzeppelin-solidity": "2.3.0",
     "solc": "^0.5.12",
     "web3": "^1.2.1"
